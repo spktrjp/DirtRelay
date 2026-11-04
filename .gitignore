@@ -1,0 +1,6 @@
+# Third-party: ORCA (hundredrabbits/Orca). Clone separately, see README.
+vendor/Orca/
+
+# OS / tooling
+.DS_Store
+node_modules/
