@@ -165,6 +165,80 @@ DirtRelay OSC で受け付けるメッセージ：
 | `/dirtrelay/play` | slot [key value …] | `/dirtrelay/play 3 note 7 cutoff 900`：スロット3を鳴らします。後ろに付けた SuperDirt のパラメータは、スロットの設定より優先されます（slot は数値か `"c"` のような文字） |
 | `/dirt/play` | key value … | SuperDirt の生の命令をそのまま中継します（レイテンシ付きの bundle にして送り、画面上部に表示）。スロットの設定は使いません |
 
+### DirtRelay OSC 仕様
+
+Max / Pd / TouchDesigner / Max for Live / Python など、OSC を送れるツールから SuperDirt を操作するための入口です。入力を **DirtRelay OSC** にしたときだけ受け付けます。
+
+#### 通信
+
+| 項目 | 内容 |
+|---|---|
+| トランスポート | OSC 1.0 over UDP |
+| ポート | `49162`（環境変数 `OSC_PORT` で変更可） |
+| 送信元 | 制限なし（すべてのネットワークインターフェースで受信。同じ LAN の別のマシンからも送れます） |
+| 受け付ける型 | `i`（int32）、`f`（float32）、`s` / `S`（文字列）、`d`（double）、`h`（int64）、`T` / `F`（1 / 0 として扱う） |
+| bundle | 受け付けます。中のメッセージを順に処理します。**タイムタグは使わず**、届いた時点から DirtRelay のレイテンシ（既定 0.2 秒、`[` `]` で調整）後に鳴ります |
+| 返信 | ありません |
+| 解釈できないもの | 無視します（画面上部に `- ` 付きで表示） |
+
+#### アドレス
+
+**`/dirtrelay` ⟨文字列…⟩** — ORCA UDP と同じテキスト書式
+
+- 文字列の引数1つが1メッセージです（1つの文字列の中を `;` で区切ってもかまいません）
+- 書式は「ORCA での書き方」と同じです：`"04C"`（スロット0・オクターブ4・C）、`"f4C8"`（velocity 8/15）、`"bd:3"`（サンプル直接）、`"bpm128"`
+- 例：`/dirtrelay "04C" "c3C"`
+
+**`/dirtrelay/note` ⟨slot:int⟩ ⟨octave:int⟩ ⟨semitone:int⟩ [⟨velocity:float⟩ ⟨length:float⟩]** — 数値で鳴らす
+
+| 引数 | 範囲 | 意味 |
+|---|---|---|
+| slot | 0〜15 | スロット番号 |
+| octave | 0〜8 | オクターブ |
+| semitone | 0〜11 | 半音（0 = C、1 = C#、… 11 = B） |
+| velocity | 0〜1（省略可） | 音量。`amp = 0.6 × velocity` として送ります |
+| length | 0〜1（省略可） | 音の長さ（1 = 1小節）。シンセのみ `sustain` に反映し、省略時はスロットの `sus` を使います |
+
+- 音程は `note = semitone + (octave − 5) × 12` として SuperDirt に送ります（octave 5 の C が note 0 = MIDI 60）
+- サンプルのスロットでは、音程を再生速度（`speed = 2^(note/12)`）に変えます
+- 例：`/dirtrelay/note 1 5 4 0.5` → スロット1で E5、velocity 0.5
+
+**`/dirtrelay/play` ⟨slot⟩ [⟨key:string⟩ ⟨value⟩ …]** — スロットを鳴らし、任意のパラメータで上書き
+
+- slot は数値（`3`）か 36進の文字（`"c"`）
+- 後ろの key / value は SuperDirt のパラメータ名と値です（`cutoff`、`room`、`speed`、`n`、`gain`、`vowel` など、[docs/01](docs/01_SuperDirt受信仕様.md) §4 のどれでも）
+- 優先順位：**ここで送った値 ＞ orbit ミキサー ＞ スロットの設定**
+- `note` は音程として扱います（省略時は 0）
+- 例：`/dirtrelay/play 3 note 7 cutoff 900 room 0.3`
+- 編集画面の out 欄では、上書きした値が下線付きで表示されます
+
+**`/dirtrelay/bpm` ⟨bpm:number⟩** — DirtRelay のテンポ（LFO の周期と length の基準）
+
+- 20 以上。整数に丸めます。例：`/dirtrelay/bpm 128`
+
+**`/dirt/play` ⟨key:string⟩ ⟨value⟩ …** — SuperDirt の命令をそのまま中継
+
+- スロット・orbit ミキサーの設定は使いません。SuperDirt の機能をすべて直接使えます
+- DirtRelay のレイテンシを付けた bundle にして SuperDirt に送ります
+- 数値は float で送ります（`orbit` と `cut` だけは int）
+- 例：`/dirt/play s "bd" n 3 orbit 1 room 0.3`
+
+#### 送信例
+
+Python（[python-osc](https://pypi.org/project/python-osc/)）：
+
+```python
+from pythonosc.udp_client import SimpleUDPClient
+c = SimpleUDPClient("127.0.0.1", 49162)
+c.send_message("/dirtrelay", "04C")
+c.send_message("/dirtrelay/note", [1, 5, 4, 0.5])
+c.send_message("/dirtrelay/play", [3, "note", 7, "cutoff", 900.0])
+c.send_message("/dirt/play", ["s", "bd", "n", 3, "orbit", 1])
+```
+
+Pd（vanilla）：`[3 note 7 cutoff 900(` → `[oscformat dirtrelay play]` → `[list prepend send]` → `[list trim]` → `[netsend -u -b]`（`[connect 127.0.0.1 49162(` で接続）。Pd は数値を float で送りますが、slot などは整数に丸めて受けます。
+Max：`[udpsend 127.0.0.1 49162]` に `/dirtrelay/play 3 note 7 cutoff 900` のメッセージを送ります。
+
 ### Tidal から使う（Tidal → DirtRelay → SuperDirt）
 
 1. DirtRelay の入力を **Tidal** に切り替えます（上部のボタン、または `i`）
