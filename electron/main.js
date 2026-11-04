@@ -53,15 +53,30 @@ function startDirt () {
   // Run sclang with a private HOME so the user's own startup.scd does not also boot a server.
   const home = path.join(app.getPath('userData'), 'sc-home')
   fs.mkdirSync(home, { recursive: true })
-  const args = []
+  // Class library config: the user's include paths (quarks) + the user's Extensions folder
+  // (the private HOME hides ~/Library/Application Support/SuperCollider/Extensions, e.g. sc3plugins).
+  const ext = path.join(SC_SUPPORT, 'Extensions')
+  const include = []
   const conf = path.join(SC_SUPPORT, 'sclang_conf.yaml')
-  if (fs.existsSync(conf)) args.push('-l', conf)
+  if (fs.existsSync(conf)) {
+    let inInc = false
+    for (const line of fs.readFileSync(conf, 'utf8').split('\n')) {
+      if (/^includePaths:/.test(line)) { inInc = true; continue }
+      if (/^\S/.test(line)) inInc = false
+      const m = inInc && /^\s*-\s+(.+?)\s*$/.exec(line)
+      if (m) include.push(m[1].replace(/^['"]|['"]$/g, ''))
+    }
+  }
+  if (fs.existsSync(ext)) include.push(ext)
+  const myConf = path.join(home, 'sclang_conf.yaml')
+  fs.writeFileSync(myConf, 'includePaths:\n' + include.map(p => `    -   ${JSON.stringify(p)}`).join('\n') + '\nexcludePaths: []\npostInlineWarnings: false\nexcludeDefaultPaths: false\n')
+  const args = ['-l', myConf]
   args.push(path.join(ROOT, 'sc', 'start_dirt.scd'))
   const log = fs.createWriteStream(logFile, { flags: 'w' })
   sc = spawn(SCLANG, args, {
     cwd: path.join(ROOT, 'sc'),
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: Object.assign({}, process.env, { HOME: home, DIRT_QUARKS: path.join(SC_SUPPORT, 'downloaded-quarks') })
+    env: Object.assign({}, process.env, { HOME: home, DIRT_QUARKS: path.join(SC_SUPPORT, 'downloaded-quarks'), DIRT_EXTENSIONS: ext })
   })
   scState = 'starting'
   sc.stdout.pipe(log); sc.stderr.pipe(log)

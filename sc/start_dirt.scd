@@ -5,6 +5,8 @@
 (
 // DIRT_QUARKS: DirtRelay アプリが HOME を差し替えて起動する場合に、本来の quarks の場所を渡す
 var quarks = "DIRT_QUARKS".getenv ?? { Platform.userAppSupportDir +/+ "downloaded-quarks" };
+// DIRT_EXTENSIONS: アプリ起動時（HOME 差し替え）でも、ユーザーの Extensions にある UGen（sc3plugins 等）を scsynth に読ませる
+"DIRT_EXTENSIONS".getenv !? { |ext| s.options.ugenPluginsPath = [Platform.resourceDir +/+ "plugins", ext, Platform.systemExtensionDir].select { |p| File.exists(p) } };
 s.options.numInputBusChannels = 0;
 s.options.numOutputBusChannels = 2;
 s.options.numBuffers = 1024 * 256;

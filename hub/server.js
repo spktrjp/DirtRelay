@@ -21,11 +21,13 @@ const events = new (require('events'))()
 module.exports = { CFG, events }
 function fatal (msg) { console.error(msg); if (require.main === module) process.exit(1); else events.emit('fatal', msg) }
 
-// Synths verified to load without sc3plugins (sc/start_dirt.scd, 2026-11-04) + SuperDirt core synths
+// Synths verified to load (sc/start_dirt.scd, 2026-11-04) + SuperDirt core synths
 const SYNTHS = ['superhammond', 'supervibe', 'supermandolin', 'supersquare', 'superreese', 'superhoover', 'superzow', 'supertron',
   'supergong', 'superfork', 'supersiren', 'superstatic', 'superkick', 'super808', 'supersnare', 'superhat', 'superclap',
   'supercomparator', 'supergrind', 'superprimes', 'superwavemechanics', 'soskick', 'soshats', 'sostoms', 'sossnare',
-  'imp', 'psin', 'pmsin', 'gabor', 'cyclo']
+  'imp', 'psin', 'pmsin', 'gabor', 'cyclo',
+  // need sc3-plugins (installed 2026-11-04, SC3plugins 3.14.1)
+  'superpiano', 'supersaw', 'superfm', 'superhex', 'superpwm', 'superchip', 'supernoise']
 let SAMPLES = []
 try {
   SAMPLES = fs.readdirSync(CFG.samplesDir, { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith('.'))

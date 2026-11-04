@@ -8,7 +8,7 @@ ORCA ;04C ──UDP 49161──▶ DirtRelay ──OSC bundle──▶ SuperDirt
                        ブラウザ GUI（http://127.0.0.1:49170/）
 ```
 
-> 状態: v0.2（2026-11）。macOS（Apple Silicon）用の Electron アプリとして動作確認しています。
+> 状態: v0.2（2026-11）。SuperCollider 3.14.1 + SuperDirt v1.7.3 + sc3-plugins 3.14.1 で、macOS（Apple Silicon）用の Electron アプリとして動作確認しています。
 
 ---
 
@@ -51,6 +51,7 @@ ORCA は SuperDirt に直接つないでも鳴りません。
 | macOS | 27 / Apple Silicon | |
 | [SuperCollider](https://supercollider.github.io/) | 3.14.1 | `brew install --cask supercollider`。3.13 以降は Apple Silicon ネイティブ（3.12 以前は Rosetta で動き、音が途切れやすい） |
 | SuperDirt（quark） | v1.7.3 | 下記の手順で入れます |
+| [sc3-plugins](https://github.com/supercollider/sc3-plugins/releases) | 3.14.1 | 任意。superpiano・supersaw・superfm など7種のシンセと、追加エフェクトに必要です。SuperCollider と同じバージョンを使います |
 | Node.js | 18 以上（確認は 22） | |
 | [ORCA](https://github.com/hundredrabbits/Orca) | desktop 版 | 他者のリポジトリのため、このリポジトリには含めていません |
 
@@ -61,6 +62,17 @@ SuperCollider を起動し、次を1回だけ実行します。サンプル（Di
 ```supercollider
 Quarks.checkForUpdates({ Quarks.install("SuperDirt", "v1.7.3"); thisProcess.recompile() })
 ```
+
+#### sc3-plugins（任意）
+
+[リリースページ](https://github.com/supercollider/sc3-plugins/releases) から SuperCollider と同じバージョンの `sc3-plugins-<版>-macOS.zip`（universal 版）をダウンロードします。中の `SC3plugins` フォルダを次の場所に置きます。
+
+```bash
+open ~/Library/Application\ Support/SuperCollider/Extensions
+```
+
+- 古い sc3-plugins（Intel 専用版など）が既にある場合は、`Extensions` の外へ移してから入れ替えてください。同じクラスが2つあると、SuperCollider がエラーになります。
+- 入れなくても DirtRelay は動きます（super* シンセのうち25種が使えます）。
 
 ### 2. DirtRelay（アプリのビルド）
 
@@ -146,7 +158,7 @@ D4....D8....D2....
 
 **編集**：Enter またはダブルクリックで開き、`←` か Esc で戻ります。
 
-- 上段：sound（シンセ30種とサンプル全バンク）、`n`（サンプル番号）、orbit、sus（シンセの音の長さ）
+- 上段：sound（シンセ37種（sc3-plugins なしでは30種）とサンプル全バンク）、`n`（サンプル番号）、orbit、sus（シンセの音の長さ）
 - パラメータ行：`名前｜●/○（ON/OFF）｜波形｜bars（何小節で1周）｜min｜max｜×`
   - 波形：`—` 固定、`∿` sine、`⟋` saw、`△` tri、`⊓` square、`⁘` rand、`≈` perlin
   - 例：Tidal の `cutoff (range 300 3000 (slow 4 sine))` は、ここでは `cutoff ● ∿ 4 300 3000` の1行になります。
@@ -200,8 +212,8 @@ LATENCY=0.1 npm start
 |---|---|
 | `● dirt` が赤いまま | 起動直後なら、そのまま待ってください（最大90秒ほど）。続く場合は、メニュー SuperDirt → Open SuperDirt Log でログを確認するか、Restart SuperDirt を試してください |
 | scsynth が `Found 0 LADSPA plugins` で止まる | 入力デバイス（マイク）を開けていません。`start_dirt.scd` は入力0chにしてあります。IDE から起動してマイクを許可するか、入力0chのまま使ってください |
-| superpiano / supersaw / superfm などが鳴らない | sc3plugins が必要です（未導入でも、その他の super* 25種は鳴ります） |
-| `ERROR: Class not defined` が十数行出る | `start_dirt.scd` が sc3plugins 依存のシンセを読み飛ばしているだけなので、問題ありません |
+| superpiano / supersaw / superfm などが鳴らない | sc3-plugins が必要です（上記「sc3-plugins（任意）」）。入っていなくても、その他の super* 25種は鳴ります。アプリから起動した SuperDirt も、`~/Library/Application Support/SuperCollider/Extensions` の sc3-plugins を読み込みます |
+| `ERROR: Class not defined` が十数行出る | sc3-plugins が無い環境で、`start_dirt.scd` が sc3-plugins 依存のシンセを読み飛ばしているだけなので、問題ありません |
 | 音がときどき途切れる・遅れる | SuperCollider 3.12 以前（Intel 版で Rosetta 上で動く）がときどき止まるのが原因です。SuperCollider 3.13 以降（Apple Silicon ネイティブ）に上げてください（実測：3.12 では 90 秒で 21 回途切れ、3.14.1 では 0 回）。上げられない場合は `]` でレイテンシを 0.5 秒程度に上げると途切れなくなります |
 | ORCA の `npm install` が 404 で失敗する | `npm_config_arch=x64` を付けて実行してください |
 | 「UDP 49161 … in use」と出てアプリが閉じる | 他に 49161 を使うアプリ（Pilot など）を閉じるか、`IN_PORT` を変えてください（ORCA 側の送信先も合わせる） |
