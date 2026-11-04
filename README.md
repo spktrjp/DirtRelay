@@ -8,7 +8,7 @@ ORCA ;04C ──UDP 49161──▶ DirtRelay ──OSC bundle──▶ SuperDirt
                        ブラウザ GUI（http://127.0.0.1:49170/）
 ```
 
-> 状態: プロトタイプ v0.1（2026-11）。macOS（Apple Silicon）で動作確認しています。
+> 状態: v0.2（2026-11）。macOS（Apple Silicon）用の Electron アプリとして動作確認しています。
 
 ---
 
@@ -62,13 +62,20 @@ SuperCollider を起動し、次を1回だけ実行します。サンプル（Di
 Quarks.checkForUpdates({ Quarks.install("SuperDirt", "v1.7.3"); thisProcess.recompile() })
 ```
 
-### 2. DirtRelay
+### 2. DirtRelay（アプリのビルド）
 
 ```bash
 git clone https://github.com/spktrjp/DirtRelay.git
 ```
 
-依存パッケージはないので、`npm install` は不要です。
+```bash
+cd DirtRelay && npm install && npm run dist
+```
+
+`dist/DirtRelay-darwin-arm64/DirtRelay.app` ができます。`/Applications` にコピーして使ってください。
+
+- 署名していないアプリです。別のMacへ持っていって初回に開くときは、右クリック →「開く」で起動してください。
+- アプリを使わずに中継部分だけ動かすこともできます：`npm run relay`（依存なし、Node.js だけで動きます）。開発中は `npm start` で、ビルドせずにアプリとして起動できます。
 
 ### 3. ORCA
 
@@ -91,15 +98,13 @@ itch.io 版の ORCA アプリを使う場合、この手順は不要です。
 
 ### 起動（毎回）
 
-1. **SuperDirt**：SuperCollider IDE で [sc/start_dirt.scd](sc/start_dirt.scd) を開き、全体を選んで実行します（Cmd+Enter）。
-   - Post ウィンドウに `HUB: SuperDirt ready` が出れば準備完了です。
-   - 初回はマイクの許可を求められることがあります。
-2. **DirtRelay**
-   ```bash
-   cd hub && npm start
-   ```
-   ブラウザで http://127.0.0.1:49170/ を開きます。上部の `● dirt` が水色なら、SuperDirt とつながっています。
-3. **ORCA**
+1. **DirtRelay.app を開きます。**
+   - SuperDirt が動いていなければ、アプリが裏で自動的に起動します（[sc/start_dirt.scd](sc/start_dirt.scd) を使います）。
+   - 準備ができるまで 25〜90 秒ほどかかります。上部の `● dirt` が赤から水色になれば準備完了です。
+   - すでに SuperCollider IDE などで SuperDirt を起動している場合は、そちらにつなぎます。
+   - アプリを終了すると、アプリが起動した SuperDirt も一緒に止まります。
+   - メニューの **SuperDirt** から、開始・再起動・停止、ログやプリセットのフォルダを開く、ができます。
+2. **ORCA**
    ```bash
    cd vendor/Orca/desktop && npm start
    ```
@@ -146,7 +151,7 @@ D4....D8....D2....
   - OFF の間は送りませんが、設定は保持し、編集もできます。仕込んでおいて本番で ON にできます。
 - 右側：受信ログ（in）と、実際に送った `/dirt/play`（out）
 
-設定は `hub/presets/current.json` に自動で保存されます。
+設定は自動で保存されます。保存先は、アプリでは `~/Library/Application Support/DirtRelay/presets/current.json`、`npm run relay` では `hub/presets/current.json` です。
 
 ### キーボード
 
@@ -190,12 +195,12 @@ LATENCY=0.1 npm start
 
 | 症状 | 対処 |
 |---|---|
-| `● dirt` が赤いまま | SuperDirt が起動していないか、ポートが 57120 ではありません。`sc/start_dirt.scd` を実行してください |
+| `● dirt` が赤いまま | 起動直後なら、そのまま待ってください（最大90秒ほど）。続く場合は、メニュー SuperDirt → Open SuperDirt Log でログを確認するか、Restart SuperDirt を試してください |
 | scsynth が `Found 0 LADSPA plugins` で止まる | 入力デバイス（マイク）を開けていません。`start_dirt.scd` は入力0chにしてあります。IDE から起動してマイクを許可するか、入力0chのまま使ってください |
 | superpiano / supersaw / superfm などが鳴らない | sc3plugins が必要です（未導入でも、その他の super* 25種は鳴ります） |
 | `ERROR: Class not defined` が十数行出る | `start_dirt.scd` が sc3plugins 依存のシンセを読み飛ばしているだけなので、問題ありません |
 | ORCA の `npm install` が 404 で失敗する | `npm_config_arch=x64` を付けて実行してください |
-| UDP 49161 が使用中で起動しない | 他に 49161 を使うアプリ（Pilot など）を閉じるか、`IN_PORT` を変えてください（ORCA 側の送信先も合わせる） |
+| 「UDP 49161 … in use」と出てアプリが閉じる | 他に 49161 を使うアプリ（Pilot など）を閉じるか、`IN_PORT` を変えてください（ORCA 側の送信先も合わせる） |
 
 ---
 
@@ -203,7 +208,8 @@ LATENCY=0.1 npm start
 
 | パス | 中身 |
 |---|---|
-| `hub/server.js` | DirtRelay 本体（UDP 受信 → 解釈 → OSC bundle 送信、HTTP + SSE） |
+| `electron/main.js` | アプリ本体（中継部の起動、ウィンドウ、SuperDirt の自動起動・停止、メニュー） |
+| `hub/server.js` | 中継部（UDP 受信 → 解釈 → OSC bundle 送信、HTTP + SSE） |
 | `hub/public/` | GUI（`index.html`）と、サーバー・GUI 共通の波形計算（`wave.js`） |
 | `hub/presets/` | 設定の保存先 |
 | `sc/` | SuperDirt 起動・試聴スクリプト |

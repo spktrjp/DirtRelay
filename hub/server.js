@@ -15,8 +15,11 @@ const CFG = {
   httpPort: +(process.env.HTTP_PORT || 49170),
   latency: +(process.env.LATENCY || 0.2),
   samplesDir: process.env.DIRT_SAMPLES || path.join(os.homedir(), 'Library/Application Support/SuperCollider/downloaded-quarks/Dirt-Samples'),
-  preset: path.join(__dirname, 'presets', 'current.json')
+  preset: process.env.DIRTRELAY_PRESET || path.join(__dirname, 'presets', 'current.json')
 }
+const events = new (require('events'))()
+module.exports = { CFG, events }
+function fatal (msg) { console.error(msg); if (require.main === module) process.exit(1); else events.emit('fatal', msg) }
 
 // Synths verified to load without sc3plugins (sc/start_dirt.scd, 2026-11-04) + SuperDirt core synths
 const SYNTHS = ['superhammond', 'supervibe', 'supermandolin', 'supersquare', 'superreese', 'superhoover', 'superzow', 'supertron',
@@ -46,7 +49,7 @@ try { state = Object.assign(defaultState(), JSON.parse(fs.readFileSync(CFG.prese
 let saveTimer = null
 function save () {
   clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => fs.writeFile(CFG.preset, JSON.stringify(state, null, 1), () => {}), 400)
+  saveTimer = setTimeout(() => { fs.mkdirSync(path.dirname(CFG.preset), { recursive: true }); fs.writeFile(CFG.preset, JSON.stringify(state, null, 1), () => {}) }, 400)
 }
 const T0 = Date.now()
 const now = () => (Date.now() - T0) / 1000
@@ -134,7 +137,7 @@ inp.on('message', (m) => {
     else broadcast('hit', { slot: -1, raw, out: null, t: now(), ignored: true })
   }
 })
-inp.on('error', (e) => { console.error(`UDP ${CFG.inPort}: ${e.message}`); process.exit(1) })
+inp.on('error', (e) => fatal(`UDP ${CFG.inPort}: ${e.message}`))
 inp.bind(CFG.inPort)
 
 // ---------- HTTP + SSE ----------
@@ -181,7 +184,8 @@ http.createServer(async (req, res) => {
     broadcast('state', { state, origin: b.origin }); return send(res, 200, { ok: true })
   }
   send(res, 404, { error: 'not found' })
-}).listen(CFG.httpPort, '127.0.0.1', () => {
+}).on('error', (e) => fatal(`HTTP ${CFG.httpPort}: ${e.message}`)).listen(CFG.httpPort, '127.0.0.1', () => {
+  events.emit('ready')
   console.log(`DirtRelay in udp:${CFG.inPort}  ->  ${CFG.dirtHost}:${CFG.dirtPort}  latency ${CFG.latency}s`)
   console.log(`GUI       http://127.0.0.1:${CFG.httpPort}/`)
   console.log(`sounds    ${SYNTHS.length} synths, ${SAMPLES.length} sample banks`)

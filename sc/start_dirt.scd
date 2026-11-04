@@ -3,9 +3,8 @@
 // - super* シンセを sc3plugins なしで「読めるものだけ」個別ロード
 // - 起動後、~listen.() で 0〜f の既定割り当てを順に試聴
 (
-var quarks = Platform.userAppSupportDir +/+ "downloaded-quarks";
-var home = "HOME".getenv;
-if(home.notNil and: { home.contains("fakehome") }) { quarks = "/Users/toyoshimorioka/Library/Application Support/SuperCollider/downloaded-quarks" };
+// DIRT_QUARKS: DirtRelay アプリが HOME を差し替えて起動する場合に、本来の quarks の場所を渡す
+var quarks = "DIRT_QUARKS".getenv ?? { Platform.userAppSupportDir +/+ "downloaded-quarks" };
 s.options.numInputBusChannels = 0;
 s.options.numOutputBusChannels = 2;
 s.options.numBuffers = 1024 * 256;

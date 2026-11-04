@@ -1,0 +1,17 @@
+{
+  "name": "dirtrelay",
+  "productName": "DirtRelay",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Relay ORCA (UDP) messages to SuperDirt with per-slot sounds, effects and LFOs",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "relay": "node hub/server.js",
+    "dist": "electron-packager . DirtRelay --platform=darwin --arch=arm64 --out=dist --overwrite --no-asar --app-bundle-id=jp.spktr.dirtrelay --ignore=\"^/(vendor|dist|docs|\\.git)($|/)\""
+  },
+  "devDependencies": {
+    "@electron/packager": "18.3.6",
+    "electron": "33.2.1"
+  }
+}

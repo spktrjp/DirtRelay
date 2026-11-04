@@ -4,3 +4,6 @@ vendor/Orca/
 # OS / tooling
 .DS_Store
 node_modules/
+
+# Electron build output
+dist/
