@@ -153,6 +153,7 @@ D4....D8....D2....
 |---|---|---|
 | **ORCA UDP** | 49161 | ORCA の `;` オペレータ。上の書式（`;04C` など） |
 | **DirtRelay OSC** | 49162 | OSC。Max / Pd / TouchDesigner / Ableton（Max for Live）など、OSC を送れるツールから SuperDirt を操作するためのものです |
+| **Tidal** | 57130 | TidalCycles の中継。下の「Tidal から使う」 |
 
 DirtRelay OSC で受け付けるメッセージ：
 
@@ -163,6 +164,22 @@ DirtRelay OSC で受け付けるメッセージ：
 | `/dirtrelay/bpm` | bpm | `/dirtrelay/bpm 128` |
 | `/dirtrelay/play` | slot [key value …] | `/dirtrelay/play 3 note 7 cutoff 900`：スロット3を鳴らします。後ろに付けた SuperDirt のパラメータは、スロットの設定より優先されます（slot は数値か `"c"` のような文字） |
 | `/dirt/play` | key value … | SuperDirt の生の命令をそのまま中継します（レイテンシ付きの bundle にして送り、画面上部に表示）。スロットの設定は使いません |
+
+### Tidal から使う（Tidal → DirtRelay → SuperDirt）
+
+1. DirtRelay の入力を **Tidal** に切り替えます（上部のボタン、または `i`）
+2. Tidal を [tidal/BootTidal.hs](tidal/BootTidal.hs) で起動します。いつもの BootTidal.hs を使う場合は、`superdirtTarget` の `oPort = 57120` を **`oPort = 57130`** に変えるだけです
+3. いつも通り `d1 $ s "bd*4"` などを書きます。Tidal に `Connected to SuperDirt.` と出ればつながっています
+
+DirtRelay がすること：
+
+- Tidal の bundle を**タイムタグを保ったまま** SuperDirt に転送します。ハンドシェイクの返信は Tidal に戻します。何も設定しなければ完全に素通しなので、SuperDirt の機能はすべて使えます
+- 画面上部に、届いた内容を `d1 s bd n 3 orbit 0` の形で表示します
+- **orbit ミキサー**（o0〜o3）で ON にしたパラメータを、その orbit の Tidal の音に追加します。Tidal 側で同じパラメータを書いていた場合は、DirtRelay の値で上書きします
+- コントロールバス（`^cutoff` などの `/c_set`）は、今まで通り Tidal から scsynth（57110）へ直接届きます
+
+SuperDirt は DirtRelay が起動します。SuperCollider IDE で別に SuperDirt を起動する必要はありません。
+確認環境：Tidal 1.9.4（このMac）。通信仕様は [docs/03_Tidal通信仕様.md](docs/03_Tidal通信仕様.md)。
 
 ### orbit の使い方
 
@@ -210,7 +227,7 @@ orbit を分ける理由：SuperDirt では room や delay が orbit 全体に1�
 | | `m` | ミュート / 解除 |
 | | `Space` | スロットの全パラメータを一括 ON / OFF |
 | | `,` `.` | BPM −1 / +1 |
-| | `i` | 入力プロトコル切り替え（ORCA UDP ⇄ DirtRelay OSC） |
+| | `i` | 入力プロトコル切り替え（ORCA UDP → DirtRelay OSC → Tidal） |
 | | `[` `]` | レイテンシ −0.05 / +0.05 秒 |
 | 編集 | `↑` `↓` / `←` `→` | 行 / 列（ON・波形・bars・min・max）の移動 |
 | | `Space` | ON / OFF |
@@ -228,6 +245,7 @@ orbit を分ける理由：SuperDirt では room や delay が orbit 全体に1�
 |---|---|---|
 | `IN_PORT` | 49161 | 受信ポート（ORCA `;` の既定送信先） |
 | `OSC_PORT` | 49162 | DirtRelay OSC の受信ポート |
+| `TIDAL_PORT` | 57130 | Tidal 中継の受信ポート（Tidal の `oPort` をここに） |
 | `DIRT_HOST` / `DIRT_PORT` | 127.0.0.1 / 57120 | SuperDirt の宛先 |
 | `HTTP_PORT` | 49170 | GUI |
 | `LATENCY` | 0.2（プリセットに保存） | SuperDirt へ送る bundle の先行時間（秒）。GUI の `[` `]` でも変更可 |
@@ -262,6 +280,7 @@ LATENCY=0.1 npm start
 | `hub/public/` | GUI（`index.html`）と、サーバー・GUI 共通の波形計算（`wave.js`） |
 | `hub/presets/` | 設定の保存先 |
 | `sc/` | SuperDirt 起動・試聴スクリプト |
+| `tidal/BootTidal.hs` | DirtRelay 経由で Tidal を使うための BootTidal |
 | `docs/` | 通信仕様（ORCA・SuperDirt・Tidal）・要件・画面モック |
 | `vendor/Orca/` | ORCA（各自で取得。git 管理外） |
 

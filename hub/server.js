@@ -11,6 +11,7 @@ const W = require('./public/wave.js')
 const CFG = {
   inPort: +(process.env.IN_PORT || 49161),
   oscPort: +(process.env.OSC_PORT || 49162),
+  tidalPort: +(process.env.TIDAL_PORT || 57130), // set Tidal's superdirtTarget oPort to this
   dirtHost: process.env.DIRT_HOST || '127.0.0.1',
   dirtPort: +(process.env.DIRT_PORT || 57120),
   httpPort: +(process.env.HTTP_PORT || 49170),
@@ -43,7 +44,7 @@ const DEFAULT_SOUNDS = ['superhammond', 'supervibe', 'supermandolin', 'supersqua
 function defaultState () {
   return {
     bpm: 120,
-    input: 'udp', // 'udp' = ORCA UDP (;), 'osc' = DirtRelay OSC
+    input: 'udp', // 'udp' = ORCA UDP (;), 'osc' = DirtRelay OSC, 'tidal' = Tidal relay
     latency: 0.2, // s. Native SC 3.14 (arm64): 0 late notes at 0.1–0.2. Under SC 3.12/Rosetta use ~0.5
     slots: DEFAULT_SOUNDS.map((s, i) => ({ id: i.toString(16), sound: s, n: 0, orbit: i >= 12 ? 1 : 0, mute: false, sustain: 0.3, params: [] })),
     orbits: [0, 1, 2, 3].map(o => ({ orbit: o, params: [] }))
@@ -165,7 +166,7 @@ function oscDecode (b, out = []) {
     if (t === 'i') { args.push(b.readInt32BE(i)); i += 4 } else if (t === 'f') { args.push(b.readFloatBE(i)); i += 4 } else if (t === 's' || t === 'S') args.push(str())
     else if (t === 'd') { args.push(b.readDoubleBE(i)); i += 8 } else if (t === 'h') { args.push(Number(b.readBigInt64BE(i))); i += 8 } else if (t === 'T') args.push(1); else if (t === 'F') args.push(0)
   }
-  out.push({ addr: head, args })
+  out.push({ addr: head, args, types: tags.slice(1) })
   return out
 }
 const fmtRaw = (addr, args) => `${addr} ${args.map(a => typeof a === 'number' ? +a.toFixed(3) : a).join(' ')}`.trim()
@@ -192,15 +193,67 @@ function handleOsc (buf) {
 }
 
 // ---------- input protocol (switchable from the GUI) ----------
+// ---------- Tidal relay: Tidal (oPort 57130) -> DirtRelay -> SuperDirt; replies go back to Tidal ----------
+// Bundles are forwarded byte-for-byte (timetags kept) unless an orbit has DirtRelay effects ON,
+// in which case those params are added/overridden in /dirt/play. /c_set goes Tidal -> scsynth directly.
+const tfwd = dgram.createSocket('udp4')
+let tidalAddr = null, tidalCount = 0
+tfwd.on('message', (m) => { if (tidalAddr && inp && state.input === 'tidal') inp.send(m, tidalAddr.port, tidalAddr.address) })
+tfwd.bind(0)
+function oscEncodeTyped (addr, args, types) {
+  const body = args.map((a, i) => {
+    const t = types[i]
+    if (t === 's' || t === 'S') return oscStr(a)
+    if (t === 'i') { const b = Buffer.alloc(4); b.writeInt32BE(Math.round(a)); return b }
+    if (t === 'd') { const b = Buffer.alloc(8); b.writeDoubleBE(a); return b }
+    const b = Buffer.alloc(4); b.writeFloatBE(a); return b
+  })
+  return Buffer.concat([oscStr(addr), oscStr(',' + types.join('')), ...body])
+}
+function handleTidal (m, r) {
+  tidalAddr = { address: r.address, port: r.port }
+  let msgs = []
+  try { msgs = oscDecode(m) } catch (e) {}
+  const plays = msgs.filter(x => x.addr === '/dirt/play')
+  let outBuf = m
+  const isBundle = m.length >= 16 && m.toString('utf8', 0, 7) === '#bundle'
+  const t = now()
+  const injected = plays.map(p => {
+    const kv = {}; for (let k = 0; k + 1 < p.args.length; k += 2) kv[p.args[k]] = k + 1
+    const orb = state.orbits[kv.orbit != null ? p.args[kv.orbit] | 0 : 0]
+    const add = orb ? orb.params.filter(q => q.on) : []
+    if (!add.length) return null
+    const args = p.args.slice(), types = p.types.split('')
+    add.forEach((q, k) => {
+      const v = +W.val(q, t, state.bpm, tidalCount + k).toFixed(4)
+      if (kv[q.name] != null) { args[kv[q.name]] = v; types[kv[q.name]] = 'f' } else { args.push(q.name, v); types.push('s', 'f') }
+    })
+    return oscEncodeTyped('/dirt/play', args, types)
+  })
+  if (isBundle && plays.length === 1 && msgs.length === 1 && injected[0]) {
+    const msg = injected[0], sz = Buffer.alloc(4); sz.writeInt32BE(msg.length)
+    outBuf = Buffer.concat([m.subarray(0, 16), sz, msg]) // "#bundle\0" + original timetag
+  }
+  tfwd.send(outBuf, CFG.dirtPort, CFG.dirtHost)
+  for (const p of plays) {
+    tidalCount++
+    const o = []; for (let k = 0; k + 1 < p.args.length; k += 2) o.push([p.args[k], p.args[k + 1]])
+    const id = (o.find(x => x[0] === '_id_') || [])[1]
+    const show = o.filter(x => !['_id_', 'cps', 'cycle', 'delta'].includes(x[0])).map(([k, v]) => `${k} ${typeof v === 'number' ? +v.toFixed(3) : v}`).join(' ')
+    broadcast('hit', { slot: -1, raw: `d${id ?? '?'} ${show}`, out: o, t, tidal: true })
+  }
+}
+
 const PROTOCOLS = { udp: { port: CFG.inPort, label: 'ORCA UDP', handle: (m) => handleText(m.toString()) },
-  osc: { port: CFG.oscPort, label: 'DirtRelay OSC', handle: handleOsc } }
+  osc: { port: CFG.oscPort, label: 'DirtRelay OSC', handle: handleOsc },
+  tidal: { port: CFG.tidalPort, label: 'Tidal', handle: handleTidal } }
 let inp = null
 function setInput (mode) {
   if (!PROTOCOLS[mode]) mode = 'udp'
   if (inp) { try { inp.close() } catch (e) {} }
   const p = PROTOCOLS[mode]
   inp = dgram.createSocket('udp4')
-  inp.on('message', (m) => p.handle(m))
+  inp.on('message', (m, r) => p.handle(m, r))
   inp.on('error', (e) => { broadcast('hit', { slot: -1, raw: `port ${p.port} in use`, out: null, t: now(), ignored: true }); if (!started) fatal(`UDP ${p.port}: ${e.message}`) })
   inp.bind(p.port, () => { started = true })
   state.input = mode

@@ -1,7 +1,7 @@
 # Tidal → SuperDirt 通信仕様（Tidal 送信側）
 
 - 対象: TidalCycles **v1.10.0**（2025-06、GitHub `tidalcycles/Tidal` main `fefb1c3`）
-- 根拠: Tidal ソース `src/Sound/Tidal/Stream/Target.hs`, `Stream/Process.hs`, `Stream/Types.hs` を読んで確認（2026-11-04）。実機の Tidal での送受信はまだ測っていない
+- 根拠: Tidal ソース `src/Sound/Tidal/Stream/Target.hs`, `Stream/Process.hs`, `Stream/Types.hs` を読んで確認（2026-11-04）。実機（Tidal 1.9.4）で DirtRelay 経由の送受信を確認：ハンドシェイク成立（Connected to SuperDirt.）、d1〜d3 の104イベントを中継、SuperDirt 側のエラー・late 0件
 - 受信側（SuperDirt）の仕様は [01_SuperDirt受信仕様.md](01_SuperDirt受信仕様.md)
 
 ---
@@ -77,7 +77,7 @@ Tidal ◀─/dirt/handshake/reply──────── &serverHostname 127.0.
 
 ---
 
-## 6. Tidal → DirtRelay → SuperDirt にする場合（設計案・未実装）
+## 6. Tidal → DirtRelay → SuperDirt（2026-11-04 実装済み、Tidal 1.9.4 で確認）
 
 ```
 Tidal ──57130(/dirt/play, /dirt/handshake)──▶ DirtRelay ──57120──▶ SuperDirt

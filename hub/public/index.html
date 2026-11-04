@@ -114,7 +114,7 @@ button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:
     <dt>Space</dt><dd>toggle all params of slot ON / OFF</dd>
     <dt>, .</dt><dd>bpm − / +</dd>
     <dt>[ ]</dt><dd>latency − / + (0.05 s). Raise it if notes drop out</dd>
-    <dt>i</dt><dd>input protocol: ORCA UDP (;04C → :49161) / DirtRelay OSC for any OSC tool (/dirtrelay, /dirtrelay/play, /dirt/play → :49162)</dd>
+    <dt>i</dt><dd>input protocol: ORCA UDP (;04C → :49161) → DirtRelay OSC for any OSC tool (/dirtrelay, /dirtrelay/play, /dirt/play → :49162) → Tidal relay (Tidal oPort 57130)</dd>
   </dl>
   <div class="sec">Edit</div>
   <dl>
@@ -278,7 +278,7 @@ function adjust(dir, big) {
   commit(sel); renderEdit();
 }
 
-function toggleInput() { post('/api/input', { input: ST.input === 'osc' ? 'udp' : 'osc' }) }
+function toggleInput() { const order = ['udp', 'osc', 'tidal']; post('/api/input', { input: order[(order.indexOf(ST.input) + 1) % order.length] }) }
 document.getElementById('proto').onclick = toggleInput;
 
 // ---------- keys ----------
