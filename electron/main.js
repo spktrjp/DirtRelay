@@ -1,7 +1,7 @@
 // DirtRelay desktop app: runs the relay (hub/server.js) in the main process, shows its GUI,
 // and starts SuperDirt (sc/start_dirt.scd) in the background when none is answering on 57120.
 'use strict'
-const { app, BrowserWindow, Menu, dialog, screen, shell } = require('electron')
+const { app, BrowserWindow, Menu, dialog, screen, shell, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -88,16 +88,19 @@ async function restartDirt () {
 
 // ---------- window / menu ----------
 function createWindow (port) {
-  const wa = screen.getPrimaryDisplay().workAreaSize
+  // ORCA-like: no title bar, no minimise/maximise, drag anywhere that is not a control; size follows content.
   win = new BrowserWindow({
-    width: 960,
-    height: Math.min(1080, wa.height),
-    minWidth: 420,
-    minHeight: 400,
+    width: 660,
+    height: 600,
+    useContentSize: true,
+    frame: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    resizable: false,
     backgroundColor: '#000000',
     title: 'DirtRelay',
-    autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, nodeIntegration: false }
+    webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js') }
   })
   win.loadURL(`http://127.0.0.1:${port}/`)
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' } })
@@ -129,6 +132,14 @@ function buildMenu () {
     { role: 'windowMenu' }
   ]))
 }
+
+ipcMain.on('fit', (e, w, h) => {
+  if (!win) return
+  const wa = screen.getDisplayMatching(win.getBounds()).workAreaSize
+  const [cw, ch] = win.getContentSize()
+  const nw = Math.min(Math.max(w, 420), wa.width), nh = Math.min(Math.max(h, 200), wa.height)
+  if (cw !== nw || ch !== nh) win.setContentSize(nw, nh)
+})
 
 // ---------- lifecycle ----------
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus() } })

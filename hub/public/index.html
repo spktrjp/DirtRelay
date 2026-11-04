@@ -12,7 +12,10 @@
 }
 html,body{background:var(--bg);margin:0}
 body{color:var(--f-high);font-family:var(--mono);font-size:13px;line-height:1.45}
-.app{max-width:960px;margin:0 auto;padding:12px 16px 16px;display:grid;gap:10px}
+.app{width:628px;margin:0;padding:10px 16px 12px;display:grid;gap:8px}
+/* frameless window: drag from any non-control area */
+html{-webkit-app-region:drag;-webkit-user-select:none;user-select:none}
+.row,button,select,input,.prow,.chip,.help,kbd,.log,.out{-webkit-app-region:no-drag}
 .top{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;border-bottom:1px solid var(--f-low);padding-bottom:6px}
 .top b{font-weight:600}
 .dim{color:var(--f-med)}
@@ -20,7 +23,7 @@ body{color:var(--f-high);font-family:var(--mono);font-size:13px;line-height:1.45
 .dot.ok{background:var(--b-med)}
 .sec{font-size:11px;letter-spacing:.14em;color:var(--f-med);text-transform:uppercase;margin:4px 0 0}
 .rows{display:grid;gap:1px}
-.row{display:grid;grid-template-columns:22px 12px 138px 34px 70px minmax(0,1fr);gap:8px;align-items:center;padding:3px 6px;border:1px solid transparent;min-height:30px}
+.row{display:grid;grid-template-columns:22px 12px 128px 26px 64px 290px;gap:8px;align-items:center;padding:3px 6px;border:1px solid transparent;min-height:30px}
 .row.sel{border-color:var(--f-high)}
 .row.muted .snd,.row.muted .raw{color:var(--f-low);text-decoration:line-through}
 .row .id{font-weight:600}
@@ -38,8 +41,9 @@ body{color:var(--f-high);font-family:var(--mono);font-size:13px;line-height:1.45
 .chip .v{color:var(--b-med);font-variant-numeric:tabular-nums}
 .chip.off .v{color:var(--f-low)}
 .empty{color:var(--f-low);font-size:11px}
-.edit{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px}
-@media (max-width:760px){.edit{grid-template-columns:1fr}}
+.edit{display:grid;grid-template-columns:1fr;gap:10px}
+.io{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.io>div{min-width:0}
 .pane{background:var(--panel);border:1px solid var(--f-low);padding:10px;min-width:0;display:grid;gap:8px;align-content:start}
 .ehead{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
 #back{font-size:18px;line-height:1;padding:2px 10px}
@@ -66,7 +70,8 @@ input:disabled{color:var(--f-low)}
 .prow .now b{color:var(--b-med);font-weight:500}
 .prow.off .now b{color:var(--f-low)}
 .prow.off canvas{opacity:.45}
-.log{display:grid;gap:1px;font-size:12px;font-variant-numeric:tabular-nums;max-height:220px;overflow:hidden}
+.log{display:grid;gap:1px;font-size:12px;font-variant-numeric:tabular-nums;height:150px;overflow:hidden;align-content:start}
+.out{height:150px;overflow:hidden}
 .log div{display:grid;grid-template-columns:76px 1fr;gap:6px;white-space:nowrap}
 .log div:first-child{color:var(--b-med)}
 .log .t{color:var(--f-med)}
@@ -107,6 +112,7 @@ button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:
     <dt>m</dt><dd>mute / unmute slot</dd>
     <dt>Space</dt><dd>toggle all params of slot ON / OFF</dd>
     <dt>, .</dt><dd>bpm − / +</dd>
+    <dt>[ ]</dt><dd>latency − / + (0.05 s). Raise it if notes drop out</dd>
   </dl>
   <div class="sec">Edit</div>
   <dl>
@@ -231,9 +237,9 @@ function renderEdit() {
       <div class="ptab"><div class="prow hd"><span></span><span></span><span>~</span><span>bars</span><span>min</span><span>max</span><span></span></div>${pr || '<div class="empty">-</div>'}</div>
       <div><button class="b" type="button" id="add" title="add (n)">+</button></div>
     </section>
-    <section class="pane">
-      <div class="sec">in</div><div class="log" id="elog"></div>
-      <div class="sec">out</div><pre class="out" id="eout">-</pre>
+    <section class="pane io">
+      <div><div class="sec">in</div><div class="log" id="elog"></div></div>
+      <div><div class="sec">out</div><pre class="out" id="eout">-</pre></div>
     </section></div>`;
   it.params.forEach((p, k) => {
     const g = (id) => v.querySelector('#' + id + k);
@@ -288,6 +294,7 @@ document.addEventListener('keydown', (e) => {
     else if (k === 'ArrowUp') { sel = Math.max(0, sel - 1); renderList() }
     else if (k === 'Enter') openEdit();
     else if (k === ' ') { const on = !it.params.every(p => p.on); it.params.forEach(p => p.on = on); commit(sel); renderList() }
+    else if (k === '[' || k === ']') { post('/api/latency', { latency: +(ST.latency + (k === ']' ? 0.05 : -0.05)).toFixed(2) }) }
     else if (k === ',' || k === '.') { S.bpm = Math.max(20, Math.min(300, S.bpm + (k === '.' ? 1 : -1))); document.getElementById('bpm').textContent = S.bpm; post('/api/bpm', { bpm: S.bpm }) }
     else return;
   } else {
@@ -333,6 +340,12 @@ function tick() {
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
+// Electron: shrink/grow the window to the content (no spare margins)
+if (window.relayApp) {
+  const appEl = document.querySelector('.app');
+  const fit = () => { const r = appEl.getBoundingClientRect(); window.relayApp.fit(r.width, r.height) };
+  new ResizeObserver(fit).observe(appEl); fit();
+}
 </script>
 </body>
 </html>

@@ -13,7 +13,7 @@ const CFG = {
   dirtHost: process.env.DIRT_HOST || '127.0.0.1',
   dirtPort: +(process.env.DIRT_PORT || 57120),
   httpPort: +(process.env.HTTP_PORT || 49170),
-  latency: +(process.env.LATENCY || 0.2),
+  latency: process.env.LATENCY ? +process.env.LATENCY : null, // null = use preset (default 0.5)
   samplesDir: process.env.DIRT_SAMPLES || path.join(os.homedir(), 'Library/Application Support/SuperCollider/downloaded-quarks/Dirt-Samples'),
   preset: process.env.DIRTRELAY_PRESET || path.join(__dirname, 'presets', 'current.json')
 }
@@ -40,12 +40,15 @@ const DEFAULT_SOUNDS = ['superhammond', 'supervibe', 'supermandolin', 'supersqua
 function defaultState () {
   return {
     bpm: 120,
+    latency: 0.5, // s. 0.2 was not enough: sclang (SC 3.12 under Rosetta) stalls up to ~1 s now and then
     slots: DEFAULT_SOUNDS.map((s, i) => ({ id: i.toString(16), sound: s, n: 0, orbit: i >= 12 ? 1 : 0, mute: false, sustain: 0.3, params: [] })),
     orbits: [0, 1, 2, 3].map(o => ({ orbit: o, params: [] }))
   }
 }
 let state = defaultState()
 try { state = Object.assign(defaultState(), JSON.parse(fs.readFileSync(CFG.preset, 'utf8'))) } catch (e) { /* first run */ }
+if (CFG.latency != null) state.latency = CFG.latency
+if (!(state.latency > 0)) state.latency = 0.5
 let saveTimer = null
 function save () {
   clearTimeout(saveTimer)
@@ -118,12 +121,12 @@ function play (slotIdx, ev, raw) {
   s.params.forEach((p, k) => add(p, k, 'm'))
   const orb = state.orbits[s.orbit | 0]
   if (orb) orb.params.forEach((p, k) => add(p, k, 'o'))
-  if (!s.mute) out.send(bundle(CFG.latency, oscMsg('/dirt/play', o.map(([k, v]) => [k, v]))), CFG.dirtPort, CFG.dirtHost)
+  if (!s.mute) out.send(bundle(state.latency, oscMsg('/dirt/play', o.map(([k, v]) => [k, v]))), CFG.dirtPort, CFG.dirtHost)
   broadcast('hit', { slot: slotIdx, raw, out: o, t, n: seed, muted: !!s.mute })
 }
 function playDirect (ev, raw) {
   const o = [['s', ev.s], ['n', ev.n], ['orbit', 0]]
-  out.send(bundle(CFG.latency, oscMsg('/dirt/play', o)), CFG.dirtPort, CFG.dirtHost)
+  out.send(bundle(state.latency, oscMsg('/dirt/play', o)), CFG.dirtPort, CFG.dirtHost)
   broadcast('hit', { slot: -1, raw, out: o, t: now() })
 }
 
@@ -147,7 +150,7 @@ function broadcast (type, data) {
   for (const c of clients) c.write(line)
 }
 setInterval(() => broadcast('status', status()), 1000)
-const status = () => ({ dirt: Date.now() - dirtSeen < 5000, inPort: CFG.inPort, dirtPort: CFG.dirtPort, latency: CFG.latency, t0: T0, bpm: state.bpm })
+const status = () => ({ dirt: Date.now() - dirtSeen < 5000, inPort: CFG.inPort, dirtPort: CFG.dirtPort, latency: state.latency, t0: T0, bpm: state.bpm })
 
 function body (req) { return new Promise((resolve) => { let d = ''; req.on('data', c => { d += c }); req.on('end', () => { try { resolve(JSON.parse(d || '{}')) } catch (e) { resolve({}) } }) }) }
 const send = (res, code, obj, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type }); res.end(type === 'application/json' ? JSON.stringify(obj) : obj) }
@@ -179,6 +182,10 @@ http.createServer(async (req, res) => {
     const i = +m[1]; play(i, { type: 'note', note: 0, vel: null, len: null }, `${(i).toString(16)}5C`)
     return send(res, 200, { ok: true })
   }
+  if (req.method === 'POST' && url === '/api/latency') {
+    const b = await body(req); if (b.latency >= 0.05 && b.latency <= 2) state.latency = +(+b.latency).toFixed(2); save()
+    broadcast('status', status()); return send(res, 200, { ok: true, latency: state.latency })
+  }
   if (req.method === 'POST' && url === '/api/bpm') {
     const b = await body(req); if (b.bpm >= 20 && b.bpm <= 300) state.bpm = +b.bpm; save()
     broadcast('state', { state, origin: b.origin }); return send(res, 200, { ok: true })
@@ -186,7 +193,7 @@ http.createServer(async (req, res) => {
   send(res, 404, { error: 'not found' })
 }).on('error', (e) => fatal(`HTTP ${CFG.httpPort}: ${e.message}`)).listen(CFG.httpPort, '127.0.0.1', () => {
   events.emit('ready')
-  console.log(`DirtRelay in udp:${CFG.inPort}  ->  ${CFG.dirtHost}:${CFG.dirtPort}  latency ${CFG.latency}s`)
+  console.log(`DirtRelay in udp:${CFG.inPort}  ->  ${CFG.dirtHost}:${CFG.dirtPort}  latency ${state.latency}s`)
   console.log(`GUI       http://127.0.0.1:${CFG.httpPort}/`)
   console.log(`sounds    ${SYNTHS.length} synths, ${SAMPLES.length} sample banks`)
 })

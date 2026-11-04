@@ -129,6 +129,8 @@ D4....D8....D2....
 | `;bd:3` | サンプル名を直接指定して鳴らします（orbit 0） |
 | `;bpm128` | DirtRelay のテンポ（LFO 周期の基準）を変えます |
 
+デモ：[examples/demo.orca](examples/demo.orca) を ORCA で開く（File → Open、またはウィンドウへドラッグ）と、ビブラフォンの8分音符、ベース、キック・スネア・ハット、小節頭のオルガンが鳴ります。
+
 注意：`;` の文字列は最初の `.` で終わります。隣の演算子とは `.` で区切ってください。`-` や `_` は ORCA に置けません。
 
 ### 画面
@@ -165,6 +167,7 @@ D4....D8....D2....
 | | `m` | ミュート / 解除 |
 | | `Space` | スロットの全パラメータを一括 ON / OFF |
 | | `,` `.` | BPM −1 / +1 |
+| | `[` `]` | レイテンシ −0.05 / +0.05 秒 |
 | 編集 | `↑` `↓` / `←` `→` | 行 / 列（ON・波形・bars・min・max）の移動 |
 | | `Space` | ON / OFF |
 | | `-` `=` | 値を下げる / 上げる（波形の欄では切替）。Shift で大きく |
@@ -182,7 +185,7 @@ D4....D8....D2....
 | `IN_PORT` | 49161 | 受信ポート（ORCA `;` の既定送信先） |
 | `DIRT_HOST` / `DIRT_PORT` | 127.0.0.1 / 57120 | SuperDirt の宛先 |
 | `HTTP_PORT` | 49170 | GUI |
-| `LATENCY` | 0.2 | SuperDirt へ送る bundle の先行時間（秒） |
+| `LATENCY` | 0.5（プリセットに保存） | SuperDirt へ送る bundle の先行時間（秒）。GUI の `[` `]` でも変更可 |
 | `DIRT_SAMPLES` | `~/Library/Application Support/SuperCollider/downloaded-quarks/Dirt-Samples` | サンプル一覧の読み込み元 |
 
 ```bash
@@ -199,6 +202,7 @@ LATENCY=0.1 npm start
 | scsynth が `Found 0 LADSPA plugins` で止まる | 入力デバイス（マイク）を開けていません。`start_dirt.scd` は入力0chにしてあります。IDE から起動してマイクを許可するか、入力0chのまま使ってください |
 | superpiano / supersaw / superfm などが鳴らない | sc3plugins が必要です（未導入でも、その他の super* 25種は鳴ります） |
 | `ERROR: Class not defined` が十数行出る | `start_dirt.scd` が sc3plugins 依存のシンセを読み飛ばしているだけなので、問題ありません |
+| 音がときどき途切れる・遅れる | SuperCollider（3.12 は Intel 版で Rosetta 上で動く）がときどき止まるのが原因です。`]` でレイテンシを上げてください（既定 0.5 秒で、実測では途切れなし）。根本的には Apple Silicon ネイティブの SuperCollider 3.13 以降に上げるのが有効です |
 | ORCA の `npm install` が 404 で失敗する | `npm_config_arch=x64` を付けて実行してください |
 | 「UDP 49161 … in use」と出てアプリが閉じる | 他に 49161 を使うアプリ（Pilot など）を閉じるか、`IN_PORT` を変えてください（ORCA 側の送信先も合わせる） |
 
