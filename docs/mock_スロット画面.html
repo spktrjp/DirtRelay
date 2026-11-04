@@ -1,0 +1,315 @@
+<title>DirtRelay Mock</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: ORCA-like terminal sized for half a Full HD screen (960×1080) beside ORCA.
+   Overview = 16 slot rows + orbit mixer; Edit = one target's parameter table. Palette borrows ORCA's default theme roles. */
+:root{
+  --bg:#000; --f-high:#fff; --f-med:#8a8a8a; --f-low:#3a3a3a; --b-med:#72dec2; --b-inv:#ffb545; --panel:#0b0b0b;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace; color-scheme:dark;
+}
+html,body{background:var(--bg)}
+body{color:var(--f-high);font-family:var(--mono);font-size:13px;line-height:1.45}
+.app{max-width:960px;margin:0 auto;padding-block:12px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:10px}
+.top{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;border-bottom:1px solid var(--f-low);padding-bottom:6px}
+.top b{font-weight:600}
+.top .dim,.dim{color:var(--f-med)}
+.mock{color:var(--b-inv)}
+.sec{font-size:11px;letter-spacing:.14em;color:var(--f-med);text-transform:uppercase;margin:4px 0 0}
+/* overview rows */
+.rows{display:grid;gap:1px}
+.row{display:grid;grid-template-columns:22px 12px 138px 34px 70px minmax(0,1fr);gap:8px;align-items:center;padding:3px 6px;border:1px solid transparent;cursor:default;min-height:30px}
+.row.sel{border-color:var(--f-high)}
+.row.muted .snd,.row.muted .raw{color:var(--f-low);text-decoration:line-through}
+.row .id{font-weight:600}
+.row.sel .id{background:var(--f-high);color:var(--bg);text-align:center}
+.led{width:8px;height:8px;border-radius:50%;background:var(--f-low)}
+.led.on{background:var(--b-med)}
+.snd{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orb{color:var(--f-med)}
+.raw{color:var(--f-med);white-space:nowrap;font-variant-numeric:tabular-nums}
+.raw.fresh{color:var(--b-med)}
+.chips{display:flex;gap:4px;flex-wrap:wrap;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--f-low);padding:0 5px;font-size:11px;white-space:nowrap}
+.chip canvas{width:30px;height:12px;display:block}
+.chip.off{color:var(--f-low);border-style:dashed}
+.chip .v{color:var(--b-med);font-variant-numeric:tabular-nums}
+.chip.off .v{color:var(--f-low)}
+.empty{color:var(--f-low);font-size:11px}
+/* edit view */
+.edit{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px}
+@media (max-width:760px){.edit{grid-template-columns:1fr}.row{grid-template-columns:22px 12px 1fr 34px;}.row .raw,.row .chips{grid-column:3/-1}}
+.pane{background:var(--panel);border:1px solid var(--f-low);padding:10px;min-width:0;display:grid;gap:8px;align-content:start}
+.ehead{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline}
+.ehead .big{font-size:32px;font-weight:600;line-height:1}
+.ehead .big span{color:var(--b-med)}
+.assign{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center}
+label{color:var(--f-med)}
+select,input{background:var(--bg);color:var(--f-high);border:1px solid var(--f-low);font:inherit;padding:2px 5px;min-width:0;width:100%;box-sizing:border-box}
+input:disabled{color:var(--f-low)}
+.ptab{display:grid;gap:4px}
+.prow{display:grid;grid-template-columns:96px 46px 76px 54px 1fr 1fr;gap:5px;align-items:center;padding:4px;border:1px solid transparent}
+.prow.hd{font-size:10px;letter-spacing:.1em;color:var(--f-med);padding-block:0}
+.prow.sel{border-color:var(--f-med)}
+.prow .nm{color:var(--b-inv)}
+.prow.off .nm{color:var(--f-med)}
+.prow .cell{outline:none}
+.prow.sel .cell.cur{outline:1px solid var(--b-inv);outline-offset:1px}
+.tog{background:none;border:1px solid var(--f-low);color:var(--f-low);font:inherit;padding:1px 0;cursor:pointer;width:100%}
+.tog.on{border-color:var(--b-med);color:var(--b-med)}
+.prow canvas{grid-column:1/-1;width:100%;height:46px;display:block;background:var(--bg);border:1px solid var(--f-low)}
+.prow .now{grid-column:1/-1;display:flex;justify-content:space-between;font-size:11px;color:var(--f-med)}
+.prow .now b{color:var(--b-med);font-weight:500}
+.prow.off .now b{color:var(--f-low)}
+.prow.off canvas{opacity:.45}
+.log{display:grid;gap:1px;font-size:12px;font-variant-numeric:tabular-nums;max-height:220px;overflow:hidden}
+.log div{display:grid;grid-template-columns:76px 1fr;gap:6px;white-space:nowrap}
+.log div:first-child{color:var(--b-med)}
+.log .t{color:var(--f-med)}
+.out{font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0}
+.out .k{color:var(--f-med)} .out .m{color:var(--b-med)} .out .o{color:var(--b-inv)}
+.keys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--f-med);border-top:1px solid var(--f-low);padding-top:6px}
+kbd{border:1px solid var(--f-low);padding:0 4px;color:var(--f-high);font:inherit}
+button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:inherit;padding:1px 8px;cursor:pointer}
+.help{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 88%,transparent);display:grid;place-items:center;padding:16px;z-index:5}
+.help .box{background:var(--panel);border:1px solid var(--f-high);padding:16px 20px;max-width:620px;width:100%;display:grid;gap:10px}
+.help dl{display:grid;grid-template-columns:150px 1fr;gap:3px 12px;margin:0;font-size:12px}
+.help dt{color:var(--b-inv)} .help dd{margin:0}
+[hidden]{display:none!important}
+:focus-visible{outline:1px solid var(--b-inv);outline-offset:1px}
+</style>
+
+<div class="app" id="app">
+  <div class="top">
+    <b>DIRT RELAY</b><span class="dim">in :49161 → out :57120 · 120 BPM · latency 0.20 s</span>
+    <span class="mock">MOCK — simulated input, no audio</span>
+    
+  </div>
+  <div id="view"></div>
+  <div class="keys" id="keys"></div>
+</div>
+<div class="help" id="help" hidden><div class="box">
+  <b>KEYBOARD</b>
+  <div class="sec">List</div>
+  <dl>
+    <dt>0–9 a–f</dt><dd>select slot</dd>
+    <dt>↑ ↓</dt><dd>move between slots / orbits</dd>
+    <dt>Enter / double-click</dt><dd>edit selected slot or orbit</dd>
+    <dt>m</dt><dd>mute / unmute slot</dd>
+    <dt>Space</dt><dd>toggle all params of slot ON / OFF</dd>
+    <dt>p</dt><dd>pause / resume input</dd>
+  </dl>
+  <div class="sec">Edit</div>
+  <dl>
+    <dt>↑ ↓</dt><dd>move between params</dd>
+    <dt>← →</dt><dd>move between columns (ON · SHAPE · BARS · MIN · MAX)</dd>
+    <dt>Space</dt><dd>toggle param ON / OFF (OFF = kept and editable, not sent)</dd>
+    <dt>- / =</dt><dd>decrease / increase (cycles SHAPE). Shift = coarse</dd>
+    <dt>Enter</dt><dd>type a value; Enter again to commit</dd>
+    <dt>n</dt><dd>add param</dd>
+    <dt>x</dt><dd>remove param (unset = not sent)</dd>
+    <dt>0–9 a–f</dt><dd>jump to another slot</dd>
+    <dt>Esc</dt><dd>back to list</dd>
+  </dl>
+  <span class="dim">? or Esc to close</span>
+</div></div>
+
+<script>
+const BAR = 2.0, SHAPES = ['const','sine','saw','tri','square','rand','perlin'];
+const LIB = { cutoff:[200,4000,800], resonance:[0,0.6,0.2], hcutoff:[50,2000,200], shape:[0,0.9,0.3], crush:[2,16,6], pan:[0,1,0.5], gain:[0.6,1.3,1], speed:[0.5,2,1], vowel:null, attack:[0.001,0.5,0.01], release:[0.05,2,0.3], tremolorate:[1,16,4], room:[0,1,0.3], size:[0,1,0.6], delay:[0,0.8,0.3], delaytime:[0.0625,1,0.25], delayfeedback:[0,0.9,0.4] };
+const SLOT_PARAMS = ['cutoff','resonance','hcutoff','shape','crush','pan','gain','speed','attack','release','tremolorate'];
+const ORBIT_PARAMS = ['room','size','delay','delaytime','delayfeedback'];
+const P = (name, on, shape, bars, min, max, fix) => ({ name, on, shape, bars, min, max, fix });
+const defs = ['superhammond','supervibe','supermandolin','supersquare','superreese','superhoover','superzow','supertron','supergong','superfork','supersiren','superstatic','superkick','super808','supersnare','superhat'];
+const slots = defs.map((s, i) => ({ id: i.toString(16), sound: s, orbit: i >= 12 ? 1 : 0, mute: false, params: [], log: [], last: '', lastT: 0, out: null, n: 0 }));
+slots[0].params = [P('cutoff', true, 'sine', 4, 300, 2400, 800), P('resonance', false, 'const', 1, 0.3, 0.6, 0.3)];
+slots[3].params = [P('pan', true, 'tri', 2, 0.2, 0.8, 0.5)];
+slots[4].params = [P('cutoff', true, 'saw', 1, 200, 900, 500), P('shape', false, 'const', 1, 0.4, 0.9, 0.4)];
+slots[12].params = [P('gain', false, 'rand', 1, 0.9, 1.1, 1)];
+slots[15].params = [P('pan', true, 'rand', 1, 0.3, 0.7, 0.5), P('hcutoff', true, 'const', 1, 1500, 2000, 1500)];
+const orbits = [0, 1, 2, 3].map(j => ({ id: 'o' + j, orbit: j, params: [] }));
+orbits[0].params = [P('room', true, 'const', 1, 0.3, 1, 0.3), P('size', true, 'const', 1, 0.7, 1, 0.7)];
+orbits[1].params = [P('delay', false, 'const', 1, 0.25, 0.8, 0.25), P('delaytime', false, 'const', 1, 0.375, 1, 0.375)];
+
+let mode = 'list', sel = 0, prow = 0, pcol = 0, paused = false, t0 = performance.now();
+const items = () => [...slots, ...orbits];
+const now = () => (performance.now() - t0) / 1000;
+
+// waves
+const hsh = (x) => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s) };
+const perl = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hsh(i) * (1 - u) + hsh(i + 1) * u };
+function wave(sh, ph, seed) { const p = ((ph % 1) + 1) % 1;
+  return sh === 'sine' ? 0.5 - 0.5 * Math.cos(p * 2 * Math.PI) : sh === 'saw' ? p : sh === 'tri' ? (p < .5 ? p * 2 : 2 - p * 2) : sh === 'square' ? (p < .5 ? 0 : 1) : sh === 'rand' ? hsh(seed) : sh === 'perlin' ? perl(ph * 4) : 0 }
+const val = (p, t, seed) => p.shape === 'const' ? +p.fix : +p.min + (p.max - p.min) * wave(p.shape, t / (BAR * p.bars), seed);
+const fmt = (v) => Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+const GLYPH = { const: '—', sine: '∿', saw: '⟋', tri: '△', square: '⊓', rand: '⁘', perlin: '≈' };
+const css = (k) => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+
+function spark(cv, p) { const c = cv.getContext('2d'), W = cv.width, H = cv.height; c.clearRect(0, 0, W, H);
+  c.strokeStyle = p.on ? css('--b-med') : css('--f-low'); c.lineWidth = 1.5; c.beginPath();
+  for (let x = 0; x <= W; x++) { const v = p.shape === 'const' ? 0.5 : wave(p.shape, x / W, x * 3.1); const y = H - 1 - (H - 2) * v; x ? c.lineTo(x, y) : c.moveTo(x, y) } c.stroke() }
+
+// ---------- list view ----------
+function renderList() {
+  const v = document.getElementById('view');
+  const row = (it, i) => {
+    const isO = i >= slots.length;
+    const chips = it.params.length ? it.params.map((p, k) => `<span class="chip${p.on ? '' : ' off'}" title="${p.name} ${p.shape}"><canvas width="60" height="24" data-i="${i}" data-k="${k}"></canvas>${p.name}<span class="v" id="cv${i}_${k}">${p.on ? fmt(val(p, now(), it.n + k)) : '-'}</span></span>`).join('') : '<span class="empty">-</span>';
+    return `<div class="row${i === sel ? ' sel' : ''}${it.mute ? ' muted' : ''}" data-i="${i}">
+      <span class="id">${isO ? 'o' + it.orbit : it.id}</span><span class="led" id="led${i}"></span>
+      <span class="snd">${isO ? '<span class="dim">-</span>' : it.sound}</span>
+      <span class="orb">${isO ? '' : 'o' + it.orbit}</span>
+      <span class="raw" id="raw${i}">${isO ? '' : (it.last ? ';' + it.last : '·')}</span>
+      <span class="chips">${chips}</span></div>`;
+  };
+  v.innerHTML = `<div class="rows">${slots.map(row).join('')}</div>
+    <div style="border-top:1px solid var(--f-low)"></div>
+    <div class="rows">${orbits.map((o, j) => row(o, slots.length + j)).join('')}</div>`;
+  v.querySelectorAll('canvas[data-k]').forEach(cv => spark(cv, items()[cv.dataset.i].params[cv.dataset.k]));
+  v.querySelectorAll('.row').forEach(r => { r.onclick = () => { sel = +r.dataset.i; renderList() }; r.ondblclick = () => { sel = +r.dataset.i; openEdit() } });
+  keys('list');
+}
+
+// ---------- edit view ----------
+function openEdit() { mode = 'edit'; prow = 0; pcol = 0; renderEdit() }
+function renderEdit() {
+  const it = items()[sel], isO = sel >= slots.length, v = document.getElementById('view');
+  const pr = it.params.map((p, k) => `<div class="prow${k === prow ? ' sel' : ''}${p.on ? '' : ' off'}" data-k="${k}">
+      <span class="nm">${p.name}</span>
+      <button type="button" class="tog cell${p.on ? ' on' : ''}" data-c="0" id="tg${k}">${p.on ? '●' : '○'}</button>
+      <select class="cell" data-c="1" id="sh${k}" aria-label="${p.name} shape">${SHAPES.map(s => `<option value="${s}"${s === p.shape ? ' selected' : ''}>${GLYPH[s]}</option>`).join('')}</select>
+      <input class="cell" data-c="2" id="ba${k}" value="${p.bars}" aria-label="period (bars)" ${p.shape === 'const' ? 'disabled' : ''}>
+      <input class="cell" data-c="3" id="mi${k}" value="${p.shape === 'const' ? p.fix : p.min}" aria-label="${p.shape === 'const' ? 'value' : 'min'}">
+      <input class="cell" data-c="4" id="ma${k}" value="${p.max}" aria-label="max" ${p.shape === 'const' ? 'disabled' : ''}>
+      <canvas width="560" height="46" id="wc${k}"></canvas>
+      <div class="now"><span></span><span>→ <b id="nv${k}">—</b></span></div>
+    </div>`).join('');
+  v.innerHTML = `<div class="edit">
+    <section class="pane">
+      <div class="ehead"><span class="big">${isO ? 'ORBIT <span>' + it.orbit + '</span>' : 'SLOT <span>' + it.id + '</span>'}</span>
+        <span>${isO ? '' : it.sound}</span></div>
+      ${isO ? '' : `<div class="assign">
+        <label for="snd">sound</label><select id="snd">${defs.concat(['bd (sample)', 'sn (sample)', 'hh (sample)']).map(s => `<option${s === it.sound ? ' selected' : ''}>${s}</option>`).join('')}</select>
+        <label for="orb">orbit</label><select id="orb">${[0, 1, 2, 3].map(o => `<option${o === it.orbit ? ' selected' : ''}>${o}</option>`).join('')}</select></div>`}
+      <div class="ptab"><div class="prow hd"><span></span><span></span><span>~</span><span>bars</span><span>min</span><span>max</span></div>${pr || '<div class="empty">-</div>'}</div>
+      <div><button class="b" type="button" id="add" title="add (n)">+</button></div>
+    </section>
+    <section class="pane">
+      <div class="sec">in</div><div class="log" id="elog"></div>
+      <div class="sec">out</div><pre class="out" id="eout">—</pre>
+    </section></div>`;
+  it.params.forEach((p, k) => {
+    const get = (id) => v.querySelector('#' + id + k);
+    get('tg').onclick = () => { p.on = !p.on; renderEdit() };
+    get('sh').onchange = (e) => { p.shape = e.target.value; renderEdit() };
+    ['ba', 'mi', 'ma'].forEach(f => get(f).onchange = (e) => { const x = parseFloat(e.target.value); if (isNaN(x)) return; if (f === 'ba') p.bars = Math.max(0.25, x); if (f === 'mi') { p.shape === 'const' ? p.fix = x : p.min = x } if (f === 'ma') p.max = x; renderEdit() });
+    v.querySelector(`.prow[data-k="${k}"]`).onclick = (e) => { prow = k; const c = e.target.closest('.cell'); if (c) pcol = +c.dataset.c; markSel() };
+  });
+  const s = v.querySelector('#snd'); if (s) s.onchange = (e) => { it.sound = e.target.value };
+  const o = v.querySelector('#orb'); if (o) o.onchange = (e) => { it.orbit = +e.target.value };
+  v.querySelector('#add').onclick = addParam;
+  if (!isO) { drawLog(it); drawOut(it) }
+  markSel(); keys('edit');
+}
+function markSel() { document.querySelectorAll('.prow[data-k]').forEach(r => { const on = +r.dataset.k === prow; r.classList.toggle('sel', on); r.querySelectorAll('.cell').forEach(c => c.classList.toggle('cur', on && +c.dataset.c === pcol)) }) }
+function addParam() { const it = items()[sel], pool = sel >= slots.length ? ORBIT_PARAMS : SLOT_PARAMS; const name = pool.find(n => !it.params.some(p => p.name === n)); if (!name) return; const [mn, mx, fx] = LIB[name]; it.params.push(P(name, false, 'const', 1, mn, mx, fx)); prow = it.params.length - 1; pcol = 0; renderEdit() }
+function drawLog(it) { const el = document.getElementById('elog'); if (el) el.innerHTML = it.log.map(l => `<div><span class="t">${l.ts}</span><span>;${l.raw}</span></div>`).join('') || '<span class="dim">-</span>' }
+function drawOut(it) { const el = document.getElementById('eout'); if (!el || !it.out) return; el.innerHTML = it.out.map(([k, v, c]) => `<span class="k">${k}</span> <span class="${c || ''}">${v}</span>`).join('\n') }
+
+function adjust(dir, big) {
+  const it = items()[sel], p = it.params[prow]; if (!p) return;
+  if (pcol === 0) { p.on = !p.on }
+  else if (pcol === 1) { p.shape = SHAPES[(SHAPES.indexOf(p.shape) + dir + SHAPES.length) % SHAPES.length] }
+  else if (pcol === 2) { p.bars = dir > 0 ? Math.min(64, p.bars * 2) : Math.max(0.25, p.bars / 2) }
+  else { const [mn, mx] = LIB[p.name], step = (mx - mn) / (big ? 10 : 100) * dir, r = (x) => +x.toFixed(4);
+    if (pcol === 3) { p.shape === 'const' ? p.fix = r(p.fix + step) : p.min = r(p.min + step) } else if (p.shape !== 'const') p.max = r(p.max + step) }
+  renderEdit();
+}
+
+// ---------- keys ----------
+function keys(m) { document.getElementById('keys').innerHTML = '<span><kbd>?</kbd></span>' }
+
+document.addEventListener('keydown', (e) => {
+  const help = document.getElementById('help'), k = e.key;
+  if (k === '?') { help.hidden = !help.hidden; e.preventDefault(); return }
+  if (!help.hidden) { if (k === 'Escape') help.hidden = true; return }
+  const inField = e.target.matches('input,select');
+  if (inField) { if (k === 'Enter' || k === 'Escape') { e.target.dispatchEvent(new Event('change')); e.target.blur(); if (k === 'Escape') e.preventDefault() } return }
+  const hex = /^[0-9a-f]$/.test(k) && !e.metaKey && !e.ctrlKey;
+  if (mode === 'list') {
+    if (hex) { sel = parseInt(k, 16); renderList() }
+    else if (k === 'ArrowDown') { sel = Math.min(items().length - 1, sel + 1); renderList() }
+    else if (k === 'ArrowUp') { sel = Math.max(0, sel - 1); renderList() }
+    else if (k === 'Enter') { openEdit() }
+    else if (k === 'm' && sel < slots.length) { slots[sel].mute = !slots[sel].mute; renderList() }
+    else if (k === ' ') { const ps = items()[sel].params, on = !ps.every(p => p.on); ps.forEach(p => p.on = on); renderList() }
+    else if (k === 'p') { paused = !paused }
+    else return;
+    e.preventDefault(); return;
+  }
+  const it = items()[sel];
+  if (k === 'Escape') { mode = 'list'; renderList() }
+  else if (hex) { sel = parseInt(k, 16); prow = 0; renderEdit() }
+  else if (k === 'ArrowDown') { prow = Math.min(it.params.length - 1, prow + 1); markSel() }
+  else if (k === 'ArrowUp') { prow = Math.max(0, prow - 1); markSel() }
+  else if (k === 'ArrowRight') { pcol = Math.min(4, pcol + 1); markSel() }
+  else if (k === 'ArrowLeft') { pcol = Math.max(0, pcol - 1); markSel() }
+  else if (k === ' ') { const p = it.params[prow]; if (p) { p.on = !p.on; renderEdit() } }
+  else if (k === '=' || k === '+') { adjust(1, e.shiftKey || k === '+') }
+  else if (k === '-' || k === '_') { adjust(-1, e.shiftKey || k === '_') }
+  else if (k === 'Enter') { const c = document.querySelector('.prow.sel .cell.cur'); if (c && pcol > 0) c.focus(); else if (c) c.click() }
+  else if (k === 'n') { addParam() }
+  else if (k === 'x' || k === 'Backspace') { if (it.params[prow]) { it.params.splice(prow, 1); prow = Math.max(0, prow - 1); renderEdit() } }
+  else return;
+  e.preventDefault();
+});
+
+// ---------- simulated ORCA input ----------
+const PAT = { 0: [4, ['4C', '4E', '4G']], 3: [8, ['5Cf', '5D']], 4: [2, ['2C', '2C', '2G', '2a']], 8: [16, ['4C']], 12: [4, ['3C']], 13: [8, ['3C']], 14: [8, ['4C'], 4], 15: [2, ['4C8', '4C4']] };
+let frame = 0;
+const NOTE = { C: 0, c: 1, D: 2, d: 3, E: 4, F: 5, f: 6, G: 7, g: 8, A: 9, a: 10, B: 11 };
+setInterval(() => {
+  if (paused) return; frame++;
+  const t = now();
+  for (const i in PAT) {
+    const [every, seq, off = 0] = PAT[i], s = slots[i];
+    if ((frame + off) % every) continue;
+    const raw = s.id + seq[s.n % seq.length];
+    s.last = raw; s.lastT = t;
+    const d = new Date(); s.log.unshift({ ts: d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0')[0], raw }); s.log.length = Math.min(s.log.length, 12);
+    if (!s.mute) {
+      const oct = +raw[1], nt = NOTE[raw[2]] ?? 0, orb = orbits[s.orbit];
+      const out = [['s', s.sound], ['orbit', s.orbit], ['note', nt + (oct - 5) * 12]];
+      s.params.forEach((p, k) => { if (p.on) out.push([p.name, fmt(val(p, t, s.n + k)), p.shape === 'const' ? '' : 'm']) });
+      orb.params.forEach((p, k) => { if (p.on) out.push([p.name, fmt(val(p, t, s.n + k)), 'o']) });
+      s.out = out;
+    }
+    s.n++;
+    const led = document.getElementById('led' + i); if (led) { led.classList.add('on'); setTimeout(() => led.classList.remove('on'), 110) }
+    const rw = document.getElementById('raw' + i); if (rw) { rw.textContent = ';' + raw; rw.classList.add('fresh'); setTimeout(() => rw.classList.remove('fresh'), 300) }
+    if (mode === 'edit' && +i === sel) { drawLog(s); drawOut(s) }
+  }
+}, 125);
+
+// live values + waveform previews
+function tick() {
+  const t = now();
+  if (mode === 'list') items().forEach((it, i) => it.params.forEach((p, k) => { const el = document.getElementById(`cv${i}_${k}`); if (el && p.on) el.textContent = fmt(val(p, t, it.n + k)) }));
+  else { const it = items()[sel];
+    it.params.forEach((p, k) => {
+      const cv = document.getElementById('wc' + k); if (!cv) return;
+      const c = cv.getContext('2d'), W = cv.width, H = cv.height, span = BAR * 4, start = t - span * 0.75;
+      const lo = p.shape === 'const' ? p.fix - 1 : Math.min(p.min, p.max), hi = p.shape === 'const' ? p.fix + 1 : Math.max(p.min, p.max);
+      const y = (x) => H - 4 - (H - 8) * ((x - lo) / ((hi - lo) || 1));
+      c.clearRect(0, 0, W, H); c.strokeStyle = css('--f-low'); c.lineWidth = 1;
+      for (let b = 0; b <= 4; b++) { const x = W * ((Math.ceil(start / BAR) + b) * BAR - start) / span; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke() }
+      if (p.shape !== 'rand') { c.strokeStyle = p.on ? css('--f-med') : css('--f-low'); c.lineWidth = 1.5; c.beginPath();
+        for (let x = 0; x <= W; x += 2) { const v = val(p, start + span * x / W, 0); x ? c.lineTo(x, y(v)) : c.moveTo(x, y(v)) } c.stroke() }
+      c.strokeStyle = css('--b-inv'); c.beginPath(); c.moveTo(W * .75, 0); c.lineTo(W * .75, H); c.stroke();
+      const nv = document.getElementById('nv' + k); if (nv) nv.textContent = p.on ? fmt(val(p, t, it.n + k)) : '-';
+    });
+  }
+  requestAnimationFrame(tick);
+}
+renderList(); requestAnimationFrame(tick);
+</script>

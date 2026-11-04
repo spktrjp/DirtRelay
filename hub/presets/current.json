@@ -1,0 +1,167 @@
+{
+ "bpm": 120,
+ "slots": [
+  {
+   "id": "0",
+   "sound": "superhammond",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "1",
+   "sound": "supervibe",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "2",
+   "sound": "supermandolin",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "3",
+   "sound": "supersquare",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "4",
+   "sound": "superreese",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "5",
+   "sound": "superhoover",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "6",
+   "sound": "superzow",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "7",
+   "sound": "supertron",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "8",
+   "sound": "supergong",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "9",
+   "sound": "superfork",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "a",
+   "sound": "supersiren",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "b",
+   "sound": "superstatic",
+   "n": 0,
+   "orbit": 0,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "c",
+   "sound": "superkick",
+   "n": 0,
+   "orbit": 1,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "d",
+   "sound": "super808",
+   "n": 0,
+   "orbit": 1,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "e",
+   "sound": "supersnare",
+   "n": 0,
+   "orbit": 1,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  },
+  {
+   "id": "f",
+   "sound": "superhat",
+   "n": 0,
+   "orbit": 1,
+   "mute": false,
+   "sustain": 0.3,
+   "params": []
+  }
+ ],
+ "orbits": [
+  {
+   "orbit": 0,
+   "params": []
+  },
+  {
+   "orbit": 1,
+   "params": []
+  },
+  {
+   "orbit": 2,
+   "params": []
+  },
+  {
+   "orbit": 3,
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DirtRelay</title>
+<style>
+/* ORCA-like terminal, sized for half a Full HD screen (960×1080) beside ORCA. */
+:root{
+  --bg:#000; --f-high:#fff; --f-med:#8a8a8a; --f-low:#3a3a3a; --b-med:#72dec2; --b-inv:#ffb545; --panel:#0b0b0b; --bad:#ff5a5a;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace; color-scheme:dark;
+}
+html,body{background:var(--bg);margin:0}
+body{color:var(--f-high);font-family:var(--mono);font-size:13px;line-height:1.45}
+.app{max-width:960px;margin:0 auto;padding:12px 16px 16px;display:grid;gap:10px}
+.top{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;border-bottom:1px solid var(--f-low);padding-bottom:6px}
+.top b{font-weight:600}
+.dim{color:var(--f-med)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:4px}
+.dot.ok{background:var(--b-med)}
+.sec{font-size:11px;letter-spacing:.14em;color:var(--f-med);text-transform:uppercase;margin:4px 0 0}
+.rows{display:grid;gap:1px}
+.row{display:grid;grid-template-columns:22px 12px 138px 34px 70px minmax(0,1fr);gap:8px;align-items:center;padding:3px 6px;border:1px solid transparent;min-height:30px}
+.row.sel{border-color:var(--f-high)}
+.row.muted .snd,.row.muted .raw{color:var(--f-low);text-decoration:line-through}
+.row .id{font-weight:600}
+.row.sel .id{background:var(--f-high);color:var(--bg);text-align:center}
+.led{width:8px;height:8px;border-radius:50%;background:var(--f-low)}
+.led.on{background:var(--b-med)}
+.snd{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orb{color:var(--f-med)}
+.raw{color:var(--f-med);white-space:nowrap;font-variant-numeric:tabular-nums}
+.raw.fresh{color:var(--b-med)}
+.chips{display:flex;gap:4px;flex-wrap:wrap;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--f-low);padding:0 5px;font-size:11px;white-space:nowrap}
+.chip canvas{width:30px;height:12px;display:block}
+.chip.off{color:var(--f-low);border-style:dashed}
+.chip .v{color:var(--b-med);font-variant-numeric:tabular-nums}
+.chip.off .v{color:var(--f-low)}
+.empty{color:var(--f-low);font-size:11px}
+.edit{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px}
+@media (max-width:760px){.edit{grid-template-columns:1fr}}
+.pane{background:var(--panel);border:1px solid var(--f-low);padding:10px;min-width:0;display:grid;gap:8px;align-content:start}
+.ehead{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+#back{font-size:18px;line-height:1;padding:2px 10px}
+.ehead .big{font-size:32px;font-weight:600;line-height:1}
+.ehead .big span{color:var(--b-med)}
+.assign{display:grid;grid-template-columns:auto 1fr auto 70px auto 70px auto 70px;gap:6px 8px;align-items:center}
+label{color:var(--f-med)}
+select,input{background:var(--bg);color:var(--f-high);border:1px solid var(--f-low);font:inherit;padding:2px 5px;min-width:0;width:100%;box-sizing:border-box}
+input:disabled{color:var(--f-low)}
+.ptab{display:grid;gap:4px}
+.prow{display:grid;grid-template-columns:110px 34px 60px 54px 1fr 1fr 22px;gap:5px;align-items:center;padding:4px;border:1px solid transparent}
+.prow.hd{font-size:10px;letter-spacing:.1em;color:var(--f-med);padding-block:0}
+.prow.sel{border-color:var(--f-med)}
+.prow .nm{color:var(--b-inv)}
+.prow.off .nm{color:var(--f-med)}
+.prow .nm select{color:inherit;border-color:transparent;padding:0}
+.prow.sel .cell.cur{outline:1px solid var(--b-inv);outline-offset:1px}
+.tog{background:none;border:1px solid var(--f-low);color:var(--f-low);font:inherit;padding:1px 0;cursor:pointer;width:100%}
+.tog.on{border-color:var(--b-med);color:var(--b-med)}
+.del{background:none;border:none;color:var(--f-low);font:inherit;cursor:pointer;padding:0}
+.del:hover{color:var(--f-high)}
+.prow canvas{grid-column:1/-1;width:100%;height:46px;display:block;background:var(--bg);border:1px solid var(--f-low)}
+.prow .now{grid-column:1/-1;display:flex;justify-content:flex-end;font-size:11px;color:var(--f-med)}
+.prow .now b{color:var(--b-med);font-weight:500}
+.prow.off .now b{color:var(--f-low)}
+.prow.off canvas{opacity:.45}
+.log{display:grid;gap:1px;font-size:12px;font-variant-numeric:tabular-nums;max-height:220px;overflow:hidden}
+.log div{display:grid;grid-template-columns:76px 1fr;gap:6px;white-space:nowrap}
+.log div:first-child{color:var(--b-med)}
+.log .t{color:var(--f-med)}
+.out{font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0}
+.out .k{color:var(--f-med)} .out .m{color:var(--b-med)} .out .o{color:var(--b-inv)}
+.keys{font-size:11px;color:var(--f-med);border-top:1px solid var(--f-low);padding-top:6px}
+kbd{border:1px solid var(--f-low);padding:0 4px;color:var(--f-high);font:inherit}
+button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:inherit;padding:1px 8px;cursor:pointer}
+.help{position:fixed;inset:0;background:rgba(0,0,0,.88);display:grid;place-items:center;padding:16px;z-index:5}
+.help .box{background:var(--panel);border:1px solid var(--f-high);padding:16px 20px;max-width:620px;width:100%;display:grid;gap:10px}
+.help dl{display:grid;grid-template-columns:150px 1fr;gap:3px 12px;margin:0;font-size:12px}
+.help dt{color:var(--b-inv)} .help dd{margin:0}
+.stray{font-size:11px;color:var(--f-med);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[hidden]{display:none!important}
+:focus-visible{outline:1px solid var(--b-inv);outline-offset:1px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <b>DIRT RELAY</b>
+    <span class="dim" id="ports">-</span>
+    <span><span class="dot" id="dirt"></span><span class="dim">dirt</span></span>
+    <span class="dim"><span id="bpm">120</span> bpm</span>
+    <span class="stray" id="stray"></span>
+  </div>
+  <div id="view"></div>
+  <div class="keys"><kbd>?</kbd></div>
+</div>
+<div class="help" id="help" hidden><div class="box">
+  <b>KEYBOARD</b>
+  <div class="sec">List</div>
+  <dl>
+    <dt>0–9 a–f</dt><dd>select slot</dd>
+    <dt>↑ ↓</dt><dd>move between slots / orbits</dd>
+    <dt>Enter / double-click</dt><dd>edit selected slot or orbit</dd>
+    <dt>t</dt><dd>test-play selected slot</dd>
+    <dt>m</dt><dd>mute / unmute slot</dd>
+    <dt>Space</dt><dd>toggle all params of slot ON / OFF</dd>
+    <dt>, .</dt><dd>bpm − / +</dd>
+  </dl>
+  <div class="sec">Edit</div>
+  <dl>
+    <dt>↑ ↓</dt><dd>move between params</dd>
+    <dt>← →</dt><dd>move between columns (ON · SHAPE · BARS · MIN · MAX)</dd>
+    <dt>Space</dt><dd>toggle param ON / OFF (OFF = kept and editable, not sent)</dd>
+    <dt>- / =</dt><dd>decrease / increase (cycles SHAPE). Shift = coarse</dd>
+    <dt>Enter</dt><dd>type a value; Enter again to commit</dd>
+    <dt>n / x</dt><dd>add / remove param</dd>
+    <dt>s / o</dt><dd>focus sound / orbit</dd>
+    <dt>t / m</dt><dd>test-play / mute</dd>
+    <dt>0–9 a–f</dt><dd>jump to another slot</dd>
+    <dt>Esc</dt><dd>back to list</dd>
+  </dl>
+  <span class="dim">? / Esc</span>
+</div></div>
+
+<script src="/wave.js"></script>
+<script>
+const { SHAPES, GLYPH, val } = W;
+const LIB = { cutoff:[100,8000,1000], resonance:[0,0.6,0.2], hcutoff:[20,4000,200], hresonance:[0,0.6,0.1], bandf:[100,6000,800], bandq:[1,40,10],
+  shape:[0,0.9,0.3], crush:[2,16,6], coarse:[1,32,4], pan:[0,1,0.5], gain:[0.5,1.4,1], speed:[0.25,4,1], accelerate:[-2,2,0],
+  begin:[0,1,0], end:[0,1,1], attack:[0.001,1,0.01], release:[0.01,3,0.3], hold:[0,2,0], legato:[0.1,4,1], sustain:[0.05,4,0.3],
+  tremolorate:[0.5,32,4], tremolodepth:[0,1,0.5], phaserrate:[0.1,16,1], phaserdepth:[0,1,0.5], psrate:[0.25,4,1], psdisp:[0,1,0],
+  room:[0,1,0.3], size:[0,1,0.6], dry:[0,1,0], delay:[0,1,0.3], delaytime:[0.0625,1,0.25], delayfeedback:[0,0.95,0.4], lock:[0,1,1],
+  leslie:[0,1,0.5], lrate:[0.5,10,6.7], lsize:[0,1,0.3] };
+const SLOT_PARAMS = ['cutoff','resonance','hcutoff','hresonance','bandf','bandq','shape','crush','coarse','pan','gain','speed','accelerate','begin','end','attack','release','hold','legato','tremolorate','tremolodepth','phaserrate','phaserdepth','psrate','psdisp'];
+const ORBIT_PARAMS = ['room','size','dry','delay','delaytime','delayfeedback','lock','leslie','lrate','lsize'];
+const P = (name) => { const [mn, mx, fx] = LIB[name]; return { name, on: false, shape: 'const', bars: 1, min: mn, max: mx, fix: fx } };
+const ORIGIN = Math.random().toString(36).slice(2);
+
+let S = null, ST = { t0: Date.now(), bpm: 120 }, SOUNDS = { synths: [], samples: [] };
+let mode = 'list', sel = 0, prow = 0, pcol = 0;
+const logs = {}, outs = {}, ncount = {};
+const items = () => S ? [...S.slots, ...S.orbits] : [];
+const isO = (i) => S && i >= S.slots.length;
+const now = () => (Date.now() - ST.t0) / 1000;
+const fmt = (v) => Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+const css = (k) => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const esc = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------- server sync ----------
+let pushT = {};
+function commit(i) {
+  const key = String(i); clearTimeout(pushT[key]);
+  pushT[key] = setTimeout(() => {
+    const url = isO(i) ? `/api/orbit/${i - S.slots.length}` : `/api/slot/${i}`;
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: items()[i], origin: ORIGIN }) });
+  }, 80);
+}
+const post = (url, b = {}) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ origin: ORIGIN }, b)) });
+fetch('/api/sounds').then(r => r.json()).then(j => { SOUNDS = j; if (mode === 'edit') renderEdit() });
+const es = new EventSource('/events');
+es.addEventListener('state', (e) => { const d = JSON.parse(e.data); if (d.origin === ORIGIN && S) return; S = d.state; document.getElementById('bpm').textContent = S.bpm; render() });
+es.addEventListener('status', (e) => { const d = JSON.parse(e.data); ST = d; document.getElementById('dirt').classList.toggle('ok', d.dirt); document.getElementById('ports').textContent = `:${d.inPort} → :${d.dirtPort} · ${d.latency}s`; document.getElementById('bpm').textContent = d.bpm });
+es.addEventListener('hit', (e) => onHit(JSON.parse(e.data)));
+es.onerror = () => document.getElementById('dirt').classList.remove('ok');
+
+function onHit(h) {
+  const d = new Date(), ts = d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0')[0];
+  if (h.slot < 0) { document.getElementById('stray').textContent = (h.ignored ? '- ' : '→ ') + ';' + h.raw; return }
+  const i = h.slot; (logs[i] = logs[i] || []).unshift({ ts, raw: h.raw }); logs[i].length = Math.min(logs[i].length, 12);
+  outs[i] = h.out; ncount[i] = h.n + 1;
+  const led = document.getElementById('led' + i); if (led) { led.classList.add('on'); setTimeout(() => led.classList.remove('on'), 110) }
+  const rw = document.getElementById('raw' + i); if (rw) { rw.textContent = ';' + h.raw; rw.classList.add('fresh'); setTimeout(() => rw.classList.remove('fresh'), 300) }
+  if (mode === 'edit' && i === sel) { drawLog(i); drawOut(i) }
+}
+
+// ---------- render ----------
+function render() { if (!S) return; mode === 'list' ? renderList() : renderEdit() }
+function spark(cv, p) { const c = cv.getContext('2d'), Wd = cv.width, H = cv.height; c.clearRect(0, 0, Wd, H);
+  c.strokeStyle = p.on ? css('--b-med') : css('--f-low'); c.lineWidth = 1.5; c.beginPath();
+  for (let x = 0; x <= Wd; x++) { const v = p.shape === 'const' ? 0.5 : W.wave(p.shape, x / Wd, x * 3.1); const y = H - 1 - (H - 2) * v; x ? c.lineTo(x, y) : c.moveTo(x, y) } c.stroke() }
+
+function renderList() {
+  const v = document.getElementById('view');
+  const row = (it, i) => {
+    const o = isO(i);
+    const chips = it.params.length ? it.params.map((p, k) => `<span class="chip${p.on ? '' : ' off'}"><canvas width="60" height="24" data-i="${i}" data-k="${k}"></canvas>${p.name}<span class="v" id="cv${i}_${k}">-</span></span>`).join('') : '<span class="empty">-</span>';
+    const last = !o && logs[i] && logs[i][0] ? ';' + logs[i][0].raw : '-';
+    return `<div class="row${i === sel ? ' sel' : ''}${it.mute ? ' muted' : ''}" data-i="${i}">
+      <span class="id">${o ? 'o' + it.orbit : it.id}</span><span class="led" id="led${i}"></span>
+      <span class="snd">${o ? '<span class="dim">-</span>' : esc(it.sound) + (it.n ? ':' + it.n : '')}</span>
+      <span class="orb">${o ? '' : 'o' + it.orbit}</span>
+      <span class="raw" id="raw${i}">${o ? '' : esc(last)}</span>
+      <span class="chips">${chips}</span></div>`;
+  };
+  v.innerHTML = `<div class="rows">${S.slots.map(row).join('')}</div>
+    <div style="border-top:1px solid var(--f-low)"></div>
+    <div class="rows">${S.orbits.map((o, j) => row(o, S.slots.length + j)).join('')}</div>`;
+  v.querySelectorAll('canvas[data-k]').forEach(cv => spark(cv, items()[cv.dataset.i].params[cv.dataset.k]));
+  v.querySelectorAll('.row').forEach(r => { r.onclick = () => { sel = +r.dataset.i; renderList() }; r.ondblclick = () => { sel = +r.dataset.i; openEdit() } });
+}
+
+function openEdit() { mode = 'edit'; prow = 0; pcol = 0; renderEdit() }
+function soundOptions(cur) {
+  const o = (n, label) => `<option value="${esc(n)}"${n === cur ? ' selected' : ''}>${esc(label || n)}</option>`;
+  return `<optgroup label="synth">${SOUNDS.synths.map(n => o(n)).join('')}</optgroup><optgroup label="sample">${SOUNDS.samples.map(s => o(s.name, `${s.name} (${s.count})`)).join('')}</optgroup>`;
+}
+function renderEdit() {
+  const it = items()[sel], o = isO(sel), v = document.getElementById('view');
+  const pool = o ? ORBIT_PARAMS : SLOT_PARAMS;
+  const pr = it.params.map((p, k) => `<div class="prow${k === prow ? ' sel' : ''}${p.on ? '' : ' off'}" data-k="${k}">
+      <span class="nm"><select id="pn${k}" aria-label="param">${pool.map(n => `<option${n === p.name ? ' selected' : ''}>${n}</option>`).join('')}</select></span>
+      <button type="button" class="tog cell${p.on ? ' on' : ''}" data-c="0" id="tg${k}">${p.on ? '●' : '○'}</button>
+      <select class="cell" data-c="1" id="sh${k}" aria-label="shape">${SHAPES.map(s => `<option value="${s}"${s === p.shape ? ' selected' : ''} title="${s}">${GLYPH[s]}</option>`).join('')}</select>
+      <input class="cell" data-c="2" id="ba${k}" value="${p.bars}" aria-label="bars" ${p.shape === 'const' ? 'disabled' : ''}>
+      <input class="cell" data-c="3" id="mi${k}" value="${p.shape === 'const' ? p.fix : p.min}" aria-label="${p.shape === 'const' ? 'value' : 'min'}">
+      <input class="cell" data-c="4" id="ma${k}" value="${p.max}" aria-label="max" ${p.shape === 'const' ? 'disabled' : ''}>
+      <button type="button" class="del" id="dl${k}" title="remove (x)" aria-label="remove">×</button>
+      <canvas width="560" height="46" id="wc${k}"></canvas>
+      <div class="now"><span>→ <b id="nv${k}">-</b></span></div>
+    </div>`).join('');
+  v.innerHTML = `<div class="edit">
+    <section class="pane">
+      <div class="ehead"><button class="b" type="button" id="back" title="back (Esc)" aria-label="back">←</button><span class="big">${o ? 'ORBIT <span>' + it.orbit + '</span>' : 'SLOT <span>' + it.id + '</span>'}</span>${o ? '' : '<span>' + esc(it.sound) + '</span>'}</div>
+      ${o ? '' : `<div class="assign">
+        <label for="snd">sound</label><select id="snd">${soundOptions(it.sound)}</select>
+        <label for="nn">n</label><input id="nn" value="${it.n || 0}">
+        <label for="orb">orbit</label><select id="orb">${S.orbits.map(x => `<option${x.orbit === it.orbit ? ' selected' : ''}>${x.orbit}</option>`).join('')}</select>
+        <label for="sus">sus</label><input id="sus" value="${it.sustain ?? 0.3}"></div>`}
+      <div class="ptab"><div class="prow hd"><span></span><span></span><span>~</span><span>bars</span><span>min</span><span>max</span><span></span></div>${pr || '<div class="empty">-</div>'}</div>
+      <div><button class="b" type="button" id="add" title="add (n)">+</button></div>
+    </section>
+    <section class="pane">
+      <div class="sec">in</div><div class="log" id="elog"></div>
+      <div class="sec">out</div><pre class="out" id="eout">-</pre>
+    </section></div>`;
+  it.params.forEach((p, k) => {
+    const g = (id) => v.querySelector('#' + id + k);
+    g('pn').onchange = (e) => { const np = P(e.target.value); np.on = p.on; it.params[k] = np; commit(sel); renderEdit() };
+    g('tg').onclick = () => { p.on = !p.on; commit(sel); renderEdit() };
+    g('dl').onclick = (e) => { e.stopPropagation(); it.params.splice(k, 1); prow = Math.max(0, Math.min(prow, it.params.length - 1)); commit(sel); renderEdit() };
+    g('sh').onchange = (e) => { p.shape = e.target.value; commit(sel); renderEdit() };
+    ['ba', 'mi', 'ma'].forEach(f => g(f).onchange = (e) => { const x = parseFloat(e.target.value); if (isNaN(x)) return; if (f === 'ba') p.bars = Math.max(0.25, x); if (f === 'mi') { p.shape === 'const' ? p.fix = x : p.min = x } if (f === 'ma') p.max = x; commit(sel); renderEdit() });
+    v.querySelector(`.prow[data-k="${k}"]`).onclick = (e) => { prow = k; const c = e.target.closest('.cell'); if (c) pcol = +c.dataset.c; markSel() };
+  });
+  if (!o) {
+    v.querySelector('#snd').onchange = (e) => { it.sound = e.target.value; commit(sel); renderEdit() };
+    v.querySelector('#nn').onchange = (e) => { it.n = parseInt(e.target.value) || 0; commit(sel) };
+    v.querySelector('#orb').onchange = (e) => { it.orbit = +e.target.value; commit(sel) };
+    v.querySelector('#sus').onchange = (e) => { const x = parseFloat(e.target.value); if (!isNaN(x)) { it.sustain = x; commit(sel) } };
+    drawLog(sel); drawOut(sel);
+  }
+  v.querySelector('#add').onclick = addParam;
+  v.querySelector('#back').onclick = () => { mode = 'list'; renderList() };
+  markSel();
+}
+function markSel() { document.querySelectorAll('.prow[data-k]').forEach(r => { const on = +r.dataset.k === prow; r.classList.toggle('sel', on); r.querySelectorAll('.cell').forEach(c => c.classList.toggle('cur', on && +c.dataset.c === pcol)) }) }
+function addParam() { const it = items()[sel], pool = isO(sel) ? ORBIT_PARAMS : SLOT_PARAMS; const name = pool.find(n => !it.params.some(p => p.name === n)); if (!name) return; it.params.push(P(name)); prow = it.params.length - 1; pcol = 0; commit(sel); renderEdit() }
+function drawLog(i) { const el = document.getElementById('elog'); if (el) el.innerHTML = (logs[i] || []).map(l => `<div><span class="t">${l.ts}</span><span>;${esc(l.raw)}</span></div>`).join('') || '<span class="dim">-</span>' }
+function drawOut(i) { const el = document.getElementById('eout'); if (el && outs[i]) el.innerHTML = outs[i].map(([k, v, c]) => `<span class="k">${esc(k)}</span> <span class="${c || ''}">${esc(typeof v === "number" ? (Number.isInteger(v) ? v : fmt(v)) : v)}</span>`).join('\n') }
+
+function adjust(dir, big) {
+  const it = items()[sel], p = it.params[prow]; if (!p) return;
+  if (pcol === 0) p.on = !p.on;
+  else if (pcol === 1) p.shape = SHAPES[(SHAPES.indexOf(p.shape) + dir + SHAPES.length) % SHAPES.length];
+  else if (pcol === 2) p.bars = dir > 0 ? Math.min(64, p.bars * 2) : Math.max(0.25, p.bars / 2);
+  else { const [mn, mx] = LIB[p.name], step = (mx - mn) / (big ? 10 : 100) * dir, r = (x) => +x.toFixed(4);
+    if (pcol === 3) { p.shape === 'const' ? p.fix = r(p.fix + step) : p.min = r(p.min + step) } else if (p.shape !== 'const') p.max = r(p.max + step) }
+  commit(sel); renderEdit();
+}
+
+// ---------- keys ----------
+document.addEventListener('keydown', (e) => {
+  if (!S) return;
+  const help = document.getElementById('help'), k = e.key;
+  if (k === '?') { help.hidden = !help.hidden; e.preventDefault(); return }
+  if (!help.hidden) { if (k === 'Escape') help.hidden = true; return }
+  if (e.target.matches && e.target.matches('input,select')) { if (k === 'Enter' || k === 'Escape') { e.target.dispatchEvent(new Event('change')); e.target.blur(); e.preventDefault() } return }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const hex = /^[0-9a-f]$/.test(k) && parseInt(k, 16) < S.slots.length;
+  const it = items()[sel];
+  if (k === 't' && !isO(sel)) { post('/api/test/' + sel) }
+  else if (k === 'm' && !isO(sel)) { it.mute = !it.mute; commit(sel); render() }
+  else if (mode === 'list') {
+    if (hex) { sel = parseInt(k, 16); renderList() }
+    else if (k === 'ArrowDown') { sel = Math.min(items().length - 1, sel + 1); renderList() }
+    else if (k === 'ArrowUp') { sel = Math.max(0, sel - 1); renderList() }
+    else if (k === 'Enter') openEdit();
+    else if (k === ' ') { const on = !it.params.every(p => p.on); it.params.forEach(p => p.on = on); commit(sel); renderList() }
+    else if (k === ',' || k === '.') { S.bpm = Math.max(20, Math.min(300, S.bpm + (k === '.' ? 1 : -1))); document.getElementById('bpm').textContent = S.bpm; post('/api/bpm', { bpm: S.bpm }) }
+    else return;
+  } else {
+    if (k === 'Escape') { mode = 'list'; renderList() }
+    else if (hex) { sel = parseInt(k, 16); prow = 0; renderEdit() }
+    else if (k === 'ArrowDown') { prow = Math.min(it.params.length - 1, prow + 1); markSel() }
+    else if (k === 'ArrowUp') { prow = Math.max(0, prow - 1); markSel() }
+    else if (k === 'ArrowRight') { pcol = Math.min(4, pcol + 1); markSel() }
+    else if (k === 'ArrowLeft') { pcol = Math.max(0, pcol - 1); markSel() }
+    else if (k === ' ') { const p = it.params[prow]; if (p) { p.on = !p.on; commit(sel); renderEdit() } }
+    else if (k === '=' || k === '+') adjust(1, e.shiftKey || k === '+');
+    else if (k === '-' || k === '_') adjust(-1, e.shiftKey || k === '_');
+    else if (k === 'Enter') { const c = document.querySelector('.prow.sel .cell.cur'); if (c && pcol > 0) c.focus(); else if (c) c.click() }
+    else if (k === 'n') addParam();
+    else if (k === 'x' || k === 'Backspace') { if (it.params[prow]) { it.params.splice(prow, 1); prow = Math.max(0, prow - 1); commit(sel); renderEdit() } }
+    else if (k === 's') { const el = document.getElementById('snd'); if (el) el.focus() }
+    else if (k === 'o') { const el = document.getElementById('orb'); if (el) el.focus() }
+    else return;
+  }
+  e.preventDefault();
+});
+
+// ---------- live values ----------
+function tick() {
+  if (S) {
+    const t = now(), bpm = S.bpm, bar = W.barSec(bpm);
+    if (mode === 'list') items().forEach((it, i) => it.params.forEach((p, k) => { const el = document.getElementById(`cv${i}_${k}`); if (el) el.textContent = p.on ? fmt(val(p, t, bpm, (ncount[i] || 0) + k)) : '-' }));
+    else { const it = items()[sel];
+      it.params.forEach((p, k) => {
+        const cv = document.getElementById('wc' + k); if (!cv) return;
+        const c = cv.getContext('2d'), Wd = cv.width, H = cv.height, span = bar * 4, start = t - span * 0.75;
+        const lo = p.shape === 'const' ? p.fix - 1 : Math.min(p.min, p.max), hi = p.shape === 'const' ? p.fix + 1 : Math.max(p.min, p.max);
+        const y = (x) => H - 4 - (H - 8) * ((x - lo) / ((hi - lo) || 1));
+        c.clearRect(0, 0, Wd, H); c.strokeStyle = css('--f-low'); c.lineWidth = 1;
+        for (let b = 0; b <= 4; b++) { const x = Wd * ((Math.ceil(start / bar) + b) * bar - start) / span; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke() }
+        if (p.shape !== 'rand') { c.strokeStyle = p.on ? css('--f-med') : css('--f-low'); c.lineWidth = 1.5; c.beginPath();
+          for (let x = 0; x <= Wd; x += 2) { const vv = val(p, start + span * x / Wd, bpm, 0); x ? c.lineTo(x, y(vv)) : c.moveTo(x, y(vv)) } c.stroke() }
+        c.strokeStyle = css('--b-inv'); c.beginPath(); c.moveTo(Wd * .75, 0); c.lineTo(Wd * .75, H); c.stroke();
+        const nv = document.getElementById('nv' + k); if (nv) nv.textContent = p.on ? fmt(val(p, t, bpm, (ncount[sel] || 0) + k)) : '-';
+      });
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<title>ORCA × SuperDirt 通信仕様</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: 3-lane signal path (ORCA → bridge → SuperDirt), then side-by-side spec tables keyed by the same lane colors */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --fg:#1b2030; --muted:#5d6577; --line:#d9dde5;
+  --orca:#0a7c74; --orca-soft:#e2f3f1;
+  --dirt:#4b45c4; --dirt-soft:#eceafb;
+  --bridge:#a8600a; --bridge-soft:#fbf0e0;
+  --bad:#b4233a; --ok:#1d7a3a;
+  --sans:"IBM Plex Sans JP",system-ui,-apple-system,"Hiragino Sans",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12151d; --surface:#1a1e29; --fg:#e4e7ef; --muted:#9aa2b4; --line:#2c3242;
+  --orca:#4fc9bd; --orca-soft:#15302e; --dirt:#9d98ff; --dirt-soft:#23224a;
+  --bridge:#f0a64a; --bridge-soft:#35281a; --bad:#ff7d8f; --ok:#6fd492; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151d; --surface:#1a1e29; --fg:#e4e7ef; --muted:#9aa2b4; --line:#2c3242;
+  --orca:#4fc9bd; --orca-soft:#15302e; --dirt:#9d98ff; --dirt-soft:#23224a;
+  --bridge:#f0a64a; --bridge-soft:#35281a; --bad:#ff7d8f; --ok:#6fd492; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.7}
+.wrap{max-width:1080px;margin:0 auto;padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:48px}
+h1{font-size:clamp(24px,4vw,34px);line-height:1.25;margin:0;text-wrap:balance;font-weight:700}
+h2{font-size:20px;margin:0 0 12px;text-wrap:balance}
+.lede{color:var(--muted);margin:8px 0 0;max-width:65ch}
+.meta{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.02em;margin-top:12px}
+code,.mono{font-family:var(--mono);font-size:.92em}
+.k{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* signal path */
+.path{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:stretch;gap:12px}
+.node{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.node h3{margin:0 0 8px;font-size:16px}
+.node.orca{border-top:4px solid var(--orca)} .node.orca h3{color:var(--orca)}
+.node.bridge{border-top:4px solid var(--bridge);background:var(--bridge-soft)} .node.bridge h3{color:var(--bridge)}
+.node.dirt{border-top:4px solid var(--dirt)} .node.dirt h3{color:var(--dirt)}
+.node ul{margin:0;padding-left:1.1em;font-size:14px}
+.arrow{align-self:center;font-family:var(--mono);color:var(--muted);font-size:13px;text-align:center;line-height:1.3}
+.arrow b{display:block;font-size:20px;color:var(--fg)}
+@media (max-width:760px){.path{grid-template-columns:1fr}.arrow b{transform:rotate(90deg)}}
+
+/* tables */
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:14px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+tr:last-child td{border-bottom:none}
+thead th{font-size:12px;letter-spacing:.06em;font-weight:600;position:sticky;top:0;background:var(--surface)}
+th.o{color:var(--orca)} th.d{color:var(--dirt)} th.b{color:var(--bridge)}
+td.o{background:var(--orca-soft)} td.d{background:var(--dirt-soft)}
+td.row{font-weight:600;white-space:nowrap}
+.pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid currentColor;margin-right:4px;white-space:nowrap}
+.pill.bad{color:var(--bad)} .pill.ok{color:var(--ok)} .pill.warn{color:var(--bridge)}
+
+/* packet examples */
+.packets{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.pkt{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;display:grid;gap:8px;align-content:start}
+.pkt .src{font-family:var(--mono);font-size:13px}
+.pkt pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.55;background:var(--bg);border-radius:6px;padding:10px 12px;overflow-x:auto;white-space:pre}
+.pkt.o .k{color:var(--orca)} .pkt.d .k{color:var(--dirt)}
+.note{font-size:13px;color:var(--muted);margin:0}
+
+.gaps{display:grid;gap:10px;counter-reset:g}
+.gap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.gap .what{font-weight:600}
+.gap .fix{color:var(--bridge);font-size:14px}
+@media (max-width:640px){.gap{grid-template-columns:1fr}}
+footer{font-size:12px;color:var(--muted);font-family:var(--mono)}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="k">DirtRelay / 通信設計メモ 00</div>
+  <h1>ORCA の出口と SuperDirt の入口</h1>
+  <p class="lede">ORCA が実際に送るパケットと、SuperDirt が受け付ける形式を並べました。ORCA の OSC はそのまま SuperDirt に届けても鳴りません。間に立つ変換層が、これから作るアプリの中核です。</p>
+  <div class="meta">ORCA desktop @223e45c (Electron 8) · SuperDirt v1.7.3 / SC 3.12.2 · 実機プローブ 2026-11-04</div>
+</header>
+
+<section>
+  <h2>信号の流れ</h2>
+  <div class="path">
+    <div class="node orca">
+      <h3>ORCA</h3>
+      <ul>
+        <li><code>=</code> OSC → <code>:49162</code></li>
+        <li><code>;</code> UDP 文字列 → <code>:49161</code></li>
+        <li><code>:</code> <code>%</code> <code>!</code> <code>?</code> MIDI / クロック</li>
+        <li>受信 <code>:49160</code>（コマンド文字列）</li>
+      </ul>
+    </div>
+    <div class="arrow"><b>→</b>1文字パス<br>int のみ</div>
+    <div class="node bridge">
+      <h3>アプリ（変換層）</h3>
+      <ul>
+        <li>ORCA の文字列/整数を解釈</li>
+        <li><code>/dirt/play</code> の key/value を組み立て</li>
+        <li>bundle＋タイムタグで送出</li>
+        <li>PoC: <code>;bd:3</code> → <code>s bd n 3</code> で発音確認済み</li>
+      </ul>
+    </div>
+    <div class="arrow"><b>→</b>bundle<br>key/value</div>
+    <div class="node dirt">
+      <h3>SuperDirt</h3>
+      <ul>
+        <li>sclang <code>:57120</code> で OSC 受信</li>
+        <li><code>/dirt/play</code> ほか 5 アドレス</li>
+        <li>送信元は IP で制限（既定 127.0.0.1）</li>
+        <li>scsynth <code>:57110</code> は内部用</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>項目ごとの比較</h2>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>項目</th><th class="o">ORCA <code>=</code>（OSC）</th><th class="o">ORCA <code>;</code>（UDP）</th><th class="d">SuperDirt 受信</th><th class="b">直結できるか</th></tr></thead>
+    <tbody>
+      <tr><td class="row">トランスポート</td><td class="o">OSC / UDP（node-osc）</td><td class="o">素の UDP</td><td class="d">OSC / UDP</td><td><span class="pill ok">OK</span><code>=</code> のみ形式一致</td></tr>
+      <tr><td class="row">ポート</td><td class="o">送信 <code>49162</code>（設定で 6010 / 4559 / <b>57120</b> / 10111 など）</td><td class="o">送信 <code>49161</code></td><td class="d">受信 <code>57120</code></td><td><span class="pill ok">OK</span>ORCA 側で 57120 を選べる</td></tr>
+      <tr><td class="row">宛先 IP</td><td class="o" colspan="2">既定 <code>127.0.0.1</code>（コマンド <code>ip:</code> で変更）</td><td class="d">送信元 IP を <code>senderAddr</code> で制限（既定 127.0.0.1、<code>0.0.0.0</code> で全許可）</td><td><span class="pill ok">OK</span>同一マシンなら</td></tr>
+      <tr><td class="row">アドレス</td><td class="o"><code>/</code>＋<b>1文字</b>（<code>=a…</code> → <code>/a</code>）</td><td class="o">なし（文字列のみ）</td><td class="d"><code>/dirt/play</code> など複数階層</td><td><span class="pill bad">NG</span><code>/dirt/play</code> を作れない</td></tr>
+      <tr><td class="row">引数の型</td><td class="o">全部 <b>int32</b>。1文字ずつ 36進数で 0–35（<code>a</code>=10, <code>Z</code>=35, 記号は -1）</td><td class="o">UTF-8 文字列 1 本</td><td class="d">string / int / float の key/value ペア（順不同）</td><td><span class="pill bad">NG</span>文字列 <code>"bd"</code> を送れない</td></tr>
+      <tr><td class="row">長さ</td><td class="o">最大 35 引数（<code>.</code> で終わる）</td><td class="o">最大 36 文字（<code>.</code> で終わる、<code>-</code> <code>#</code> 等で切れる）</td><td class="d">制限なし（UDP パケット長まで）</td><td><span class="pill warn">注意</span>書式を短く設計する</td></tr>
+      <tr><td class="row">タイミング</td><td class="o" colspan="2">フレームごとに即時送信。タイムタグなし（単発 message）</td><td class="d">bundle のタイムタグで予約発音。単発だと latency≈0 となり <code>late</code> 警告</td><td><span class="pill warn">注意</span>変換層で bundle 化</td></tr>
+      <tr><td class="row">テンポ情報</td><td class="o" colspan="2">BPM はパケットに含まれない（MIDI クロックは別経路で出せる）</td><td class="d"><code>cps</code> / <code>delta</code> / <code>legato</code> で長さを計算</td><td><span class="pill warn">注意</span>変換層が BPM を持つ</td></tr>
+      <tr><td class="row">返信</td><td class="o" colspan="2">受けない（送りっぱなし）</td><td class="d"><code>/dirt/hello</code> <code>/dirt/handshake</code> <code>/dirt/synth-info</code> は送信元へ返信</td><td>—</td></tr>
+      <tr><td class="row">エラー通知</td><td class="o" colspan="2">なし</td><td class="d">なし（存在しない音名は sclang のログのみ）</td><td><span class="pill warn">注意</span>変換層で事前に検証</td></tr>
+      <tr><td class="row">外部からの制御</td><td class="o" colspan="2">UDP <code>49160</code> に <code>play</code> <code>stop</code> <code>bpm:140</code> <code>write:…</code> <code>inject:…</code> を送ると実行</td><td class="d"><code>/dirt/setControlBus</code>（バス 0–127）</td><td>双方向制御の足がかり</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>実際のパケット</h2>
+  <div class="packets">
+    <div class="pkt o">
+      <div class="k">ORCA <code>=</code> → :49162</div>
+      <div class="src">セル: <code>=a1b2Z</code></div>
+<pre>/a  ,iiii  1 11 2 35
+2f610000 2c696969 69000000
+00000001 0000000b 00000002 00000023</pre>
+      <p class="note"><code>b</code> は 11、<code>Z</code> は 35 として送られる。文字は残らない。</p>
+    </div>
+    <div class="pkt o">
+      <div class="k">ORCA <code>;</code> → :49161</div>
+      <div class="src">セル: <code>;bd:3.sn.</code></div>
+<pre>"bd:3"</pre>
+      <p class="note">最初の <code>.</code> で終わる。<code>;sn:2;hh</code> のように <code>.</code> を挟まないと、隣の演算子まで 1 本の文字列になる。</p>
+    </div>
+    <div class="pkt d">
+      <div class="k">SuperDirt が鳴らせる形 → :57120</div>
+      <div class="src">bundle（+0.2s）</div>
+<pre>#bundle  [NTP now+0.2]
+  /dirt/play ,sssisf…
+    s bd  n 1  orbit 1
+    cutoff 800.0  room 0.3</pre>
+      <p class="note">この形で送ると late 警告はゼロ件だった（実測）。単発 message では毎回 late が出る。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>変換層が埋めるべき差</h2>
+  <div class="gaps">
+    <div class="gap"><div class="what">ORCA の OSC は 1 文字パスと整数しか送れない</div><div class="fix"><code>;</code>（文字列）を主な入口にして書式を決める。<code>=</code> は「パス文字 → 音色・パラメータ」の割り当て表で整数を写像する。</div></div>
+    <div class="gap"><div class="what">文字列は 36 文字まで、記号で切れる</div><div class="fix">使える文字は英数字と <code>:</code> 程度。短縮記法（例 <code>bd:3</code>、<code>bd3g8</code> など）を仕様化する。</div></div>
+    <div class="gap"><div class="what">タイムタグがなく、送信時刻が揺れる</div><div class="fix">受信時刻に固定レイテンシを足した bundle で SuperDirt に送る。レイテンシは設定可能にする。</div></div>
+    <div class="gap"><div class="what">テンポ情報がパケットに乗らない</div><div class="fix">アプリが BPM を持ち、<code>cps</code> / <code>delta</code> を補う。ORCA の MIDI クロックや <code>bpm:</code> コマンドとの同期も検討する。</div></div>
+    <div class="gap"><div class="what">誤った音名でも何も返ってこない</div><div class="fix">起動時にバンク一覧を取得して保持し、送る前に検証する。</div></div>
+    <div class="gap"><div class="what">ポート 49161 / 49162 を ORCA 以外も使いうる</div><div class="fix">汎用 OSC / UDP の受け口として、ポートと書式をプロファイルで切り替えられるようにする。</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>SuperDirt が受け付けるアドレス</h2>
+  <div class="tbl">
+  <table>
+    <thead><tr><th class="d">アドレス</th><th class="d">引数</th><th class="d">返信</th></tr></thead>
+    <tbody>
+      <tr><td><code>/dirt/play</code></td><td>key/value ペア。必須は <code>s</code>（または <code>sound "bd:3"</code>）</td><td>なし</td></tr>
+      <tr><td><code>/play2</code></td><td>同上（旧名）</td><td>なし</td></tr>
+      <tr><td><code>/dirt/hello</code></td><td>なし</td><td><code>/dirt/hello/reply</code></td></tr>
+      <tr><td><code>/dirt/handshake</code></td><td>なし</td><td><code>/dirt/handshake/reply &amp;serverHostname … &amp;serverPort 57110 &amp;controlBusIndices 0…127</code></td></tr>
+      <tr><td><code>/dirt/synth-info</code></td><td>シンセ名</td><td><code>/dirt/synth-info/reply "dirt_lpf2 out cutoff resonance"</code></td></tr>
+      <tr><td><code>/dirt/setControlBus</code></td><td>index, value のペア</td><td>なし</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note" style="margin-top:10px">主なパラメータ: 音源 <code>s n sound</code> · 時間 <code>orbit cps delta legato sustain cut</code> · 再生 <code>speed begin end unit gain pan</code> · 音程 <code>note octave freq</code> · 音ごとのエフェクト <code>cutoff hcutoff bandf vowel shape crush coarse attack release</code> · orbit 共有 <code>delay delaytime delayfeedback room size leslie</code>（共有エフェクトの値は残らない。その key を含まない音が来ると orbit のエフェクトは既定値＝オフに戻る：実測）。詳細は <code>docs/01_SuperDirt受信仕様.md</code>。</p>
+</section>
+
+<footer>出典: hundredrabbits/Orca desktop/sources/scripts/core（library.js, io/osc.js, io/udp.js, commander.js）· SuperDirt classes/SuperDirt.sc, DirtEvent.sc, DirtOrbit.sc · ヘッドレス実行と UDP キャプチャによる実測</footer>
+</div>
