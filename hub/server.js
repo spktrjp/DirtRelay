@@ -10,6 +10,7 @@ const W = require('./public/wave.js')
 
 const CFG = {
   inPort: +(process.env.IN_PORT || 49161),
+  oscPort: +(process.env.OSC_PORT || 49162),
   dirtHost: process.env.DIRT_HOST || '127.0.0.1',
   dirtPort: +(process.env.DIRT_PORT || 57120),
   httpPort: +(process.env.HTTP_PORT || 49170),
@@ -42,6 +43,7 @@ const DEFAULT_SOUNDS = ['superhammond', 'supervibe', 'supermandolin', 'supersqua
 function defaultState () {
   return {
     bpm: 120,
+    input: 'udp', // 'udp' = ORCA UDP (;), 'osc' = DirtRelay OSC
     latency: 0.2, // s. Native SC 3.14 (arm64): 0 late notes at 0.1–0.2. Under SC 3.12/Rosetta use ~0.5
     slots: DEFAULT_SOUNDS.map((s, i) => ({ id: i.toString(16), sound: s, n: 0, orbit: i >= 12 ? 1 : 0, mute: false, sustain: 0.3, params: [] })),
     orbits: [0, 1, 2, 3].map(o => ({ orbit: o, params: [] }))
@@ -105,7 +107,7 @@ function parse (msg) {
 }
 
 // ---------- play ----------
-function play (slotIdx, ev, raw) {
+function play (slotIdx, ev, raw, extra = []) {
   const s = state.slots[slotIdx]
   if (!s) return
   const t = now(), seed = counters[slotIdx]++
@@ -123,6 +125,7 @@ function play (slotIdx, ev, raw) {
   s.params.forEach((p, k) => add(p, k, 'm'))
   const orb = state.orbits[s.orbit | 0]
   if (orb) orb.params.forEach((p, k) => add(p, k, 'o'))
+  for (const [k, v] of extra) { const j = o.findIndex(x => x[0] === k); if (j >= 0) o[j] = [k, v, 'x']; else o.push([k, v, 'x']) }
   if (!s.mute) out.send(bundle(state.latency, oscMsg('/dirt/play', o.map(([k, v]) => [k, v]))), CFG.dirtPort, CFG.dirtHost)
   broadcast('hit', { slot: slotIdx, raw, out: o, t, n: seed, muted: !!s.mute })
 }
@@ -132,18 +135,78 @@ function playDirect (ev, raw) {
   broadcast('hit', { slot: -1, raw, out: o, t: now() })
 }
 
-const inp = dgram.createSocket('udp4')
-inp.on('message', (m) => {
-  for (const raw of m.toString().split(';').map(x => x.trim()).filter(Boolean)) {
+function handleText (txt) {
+  for (const raw of String(txt).split(';').map(x => x.trim()).filter(Boolean)) {
     const ev = parse(raw)
     if (ev.type === 'note') play(ev.slot, ev, raw)
     else if (ev.type === 'sample') playDirect(ev, raw)
     else if (ev.type === 'bpm') { state.bpm = ev.bpm; save(); broadcast('state', { state }) }
     else broadcast('hit', { slot: -1, raw, out: null, t: now(), ignored: true })
   }
-})
-inp.on('error', (e) => fatal(`UDP ${CFG.inPort}: ${e.message}`))
-inp.bind(CFG.inPort)
+}
+
+// ---------- DirtRelay OSC: drive SuperDirt from any OSC tool (Max, Pd, TouchDesigner, …) ----------
+// /dirtrelay "04C" ["c3C" ...]            same text as ORCA UDP, one message per string arg
+// /dirtrelay/note slot oct semi [vel len]  numeric (semi 0-11, vel/len 0-1)
+// /dirtrelay/play slot [key value …]       play a slot; any SuperDirt param overrides the slot's (e.g. note 7 cutoff 900)
+// /dirtrelay/bpm bpm
+// /dirt/play key value …                   raw SuperDirt event, relayed with the relay latency (monitored as slot -)
+function oscDecode (b, out = []) {
+  let i = 0
+  const str = () => { const e = b.indexOf(0, i); const v = b.toString('utf8', i, e); i = (e + 4) & ~3; return v }
+  const head = str()
+  if (head === '#bundle') {
+    i += 8
+    while (i + 4 <= b.length) { const n = b.readInt32BE(i); i += 4; oscDecode(b.subarray(i, i + n), out); i += n }
+    return out
+  }
+  const tags = str(), args = []
+  for (const t of tags.slice(1)) {
+    if (t === 'i') { args.push(b.readInt32BE(i)); i += 4 } else if (t === 'f') { args.push(b.readFloatBE(i)); i += 4 } else if (t === 's' || t === 'S') args.push(str())
+    else if (t === 'd') { args.push(b.readDoubleBE(i)); i += 8 } else if (t === 'h') { args.push(Number(b.readBigInt64BE(i))); i += 8 } else if (t === 'T') args.push(1); else if (t === 'F') args.push(0)
+  }
+  out.push({ addr: head, args })
+  return out
+}
+const fmtRaw = (addr, args) => `${addr} ${args.map(a => typeof a === 'number' ? +a.toFixed(3) : a).join(' ')}`.trim()
+function handleOsc (buf) {
+  let msgs
+  try { msgs = oscDecode(buf) } catch (e) { return broadcast('hit', { slot: -1, raw: 'bad OSC', out: null, t: now(), ignored: true }) }
+  for (const { addr, args } of msgs) {
+    const raw = fmtRaw(addr, args)
+    if (addr === '/dirtrelay') args.filter(a => typeof a === 'string').forEach(handleText)
+    else if (addr === '/dirtrelay/bpm' && args[0] >= 20) { state.bpm = Math.round(args[0]); save(); broadcast('state', { state }) }
+    else if (addr === '/dirtrelay/note' && args.length >= 3) {
+      play(args[0] | 0, { type: 'note', note: (args[2] | 0) + ((args[1] | 0) - 5) * 12, vel: args[3] ?? null, len: args[4] ?? null }, raw)
+    } else if (addr === '/dirtrelay/play' && args.length >= 1) {
+      const slot = typeof args[0] === 'string' ? int36(args[0]) : args[0] | 0
+      const extra = []; for (let k = 1; k + 1 < args.length; k += 2) extra.push([String(args[k]), args[k + 1]])
+      const nt = extra.find(x => x[0] === 'note')
+      play(slot, { type: 'note', note: nt ? +nt[1] : 0, vel: null, len: null }, raw, extra.filter(x => x[0] !== 'note'))
+    } else if (addr === '/dirt/play' && args.length >= 2) {
+      const o = []; for (let k = 0; k + 1 < args.length; k += 2) o.push([String(args[k]), args[k + 1]])
+      out.send(bundle(state.latency, oscMsg('/dirt/play', o)), CFG.dirtPort, CFG.dirtHost)
+      broadcast('hit', { slot: -1, raw, out: o, t: now() })
+    } else broadcast('hit', { slot: -1, raw, out: null, t: now(), ignored: true })
+  }
+}
+
+// ---------- input protocol (switchable from the GUI) ----------
+const PROTOCOLS = { udp: { port: CFG.inPort, label: 'ORCA UDP', handle: (m) => handleText(m.toString()) },
+  osc: { port: CFG.oscPort, label: 'DirtRelay OSC', handle: handleOsc } }
+let inp = null
+function setInput (mode) {
+  if (!PROTOCOLS[mode]) mode = 'udp'
+  if (inp) { try { inp.close() } catch (e) {} }
+  const p = PROTOCOLS[mode]
+  inp = dgram.createSocket('udp4')
+  inp.on('message', (m) => p.handle(m))
+  inp.on('error', (e) => { broadcast('hit', { slot: -1, raw: `port ${p.port} in use`, out: null, t: now(), ignored: true }); if (!started) fatal(`UDP ${p.port}: ${e.message}`) })
+  inp.bind(p.port, () => { started = true })
+  state.input = mode
+}
+let started = false
+setInput(state.input || 'udp')
 
 // ---------- HTTP + SSE ----------
 const clients = new Set()
@@ -152,7 +215,7 @@ function broadcast (type, data) {
   for (const c of clients) c.write(line)
 }
 setInterval(() => broadcast('status', status()), 1000)
-const status = () => ({ dirt: Date.now() - dirtSeen < 5000, inPort: CFG.inPort, dirtPort: CFG.dirtPort, latency: state.latency, t0: T0, bpm: state.bpm })
+const status = () => ({ dirt: Date.now() - dirtSeen < 5000, input: state.input, inLabel: PROTOCOLS[state.input].label, inPort: PROTOCOLS[state.input].port, dirtPort: CFG.dirtPort, latency: state.latency, t0: T0, bpm: state.bpm })
 
 function body (req) { return new Promise((resolve) => { let d = ''; req.on('data', c => { d += c }); req.on('end', () => { try { resolve(JSON.parse(d || '{}')) } catch (e) { resolve({}) } }) }) }
 const send = (res, code, obj, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type }); res.end(type === 'application/json' ? JSON.stringify(obj) : obj) }
@@ -184,6 +247,10 @@ http.createServer(async (req, res) => {
     const i = +m[1]; play(i, { type: 'note', note: 0, vel: null, len: null }, `${(i).toString(16)}5C`)
     return send(res, 200, { ok: true })
   }
+  if (req.method === 'POST' && url === '/api/input') {
+    const b = await body(req); setInput(b.input); save()
+    broadcast('status', status()); return send(res, 200, { ok: true, input: state.input })
+  }
   if (req.method === 'POST' && url === '/api/latency') {
     const b = await body(req); if (b.latency >= 0.05 && b.latency <= 2) state.latency = +(+b.latency).toFixed(2); save()
     broadcast('status', status()); return send(res, 200, { ok: true, latency: state.latency })
@@ -195,7 +262,7 @@ http.createServer(async (req, res) => {
   send(res, 404, { error: 'not found' })
 }).on('error', (e) => fatal(`HTTP ${CFG.httpPort}: ${e.message}`)).listen(CFG.httpPort, '127.0.0.1', () => {
   events.emit('ready')
-  console.log(`DirtRelay in udp:${CFG.inPort}  ->  ${CFG.dirtHost}:${CFG.dirtPort}  latency ${state.latency}s`)
+  console.log(`DirtRelay in ${PROTOCOLS[state.input].label}:${PROTOCOLS[state.input].port}  ->  ${CFG.dirtHost}:${CFG.dirtPort}  latency ${state.latency}s`)
   console.log(`GUI       http://127.0.0.1:${CFG.httpPort}/`)
   console.log(`sounds    ${SYNTHS.length} synths, ${SAMPLES.length} sample banks`)
 })

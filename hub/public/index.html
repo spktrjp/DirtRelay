@@ -76,9 +76,10 @@ input:disabled{color:var(--f-low)}
 .log div:first-child{color:var(--b-med)}
 .log .t{color:var(--f-med)}
 .out{font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0}
-.out .k{color:var(--f-med)} .out .m{color:var(--b-med)} .out .o{color:var(--b-inv)}
+.out .k{color:var(--f-med)} .out .m{color:var(--b-med)} .out .o{color:var(--b-inv)} .out .x{color:var(--f-high);text-decoration:underline}
 .keys{font-size:11px;color:var(--f-med);border-top:1px solid var(--f-low);padding-top:6px}
 kbd{border:1px solid var(--f-low);padding:0 4px;color:var(--f-high);font:inherit}
+button.b.proto{font-size:11px;padding:0 6px;color:var(--b-med);border-color:var(--b-med)}
 button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:inherit;padding:1px 8px;cursor:pointer}
 .help{position:fixed;inset:0;background:rgba(0,0,0,.88);display:grid;place-items:center;padding:16px;z-index:5}
 .help .box{background:var(--panel);border:1px solid var(--f-high);padding:16px 20px;max-width:620px;width:100%;display:grid;gap:10px}
@@ -93,7 +94,7 @@ button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:
 <div class="app">
   <div class="top">
     <b>DIRT RELAY</b>
-    <span class="dim" id="ports">-</span>
+    <button type="button" class="b proto" id="proto" title="input protocol (i)">-</button><span class="dim" id="ports">-</span>
     <span><span class="dot" id="dirt"></span><span class="dim">dirt</span></span>
     <span class="dim"><span id="bpm">120</span> bpm</span>
     <span class="stray" id="stray"></span>
@@ -113,6 +114,7 @@ button.b{background:none;border:1px solid var(--f-low);color:var(--f-high);font:
     <dt>Space</dt><dd>toggle all params of slot ON / OFF</dd>
     <dt>, .</dt><dd>bpm − / +</dd>
     <dt>[ ]</dt><dd>latency − / + (0.05 s). Raise it if notes drop out</dd>
+    <dt>i</dt><dd>input protocol: ORCA UDP (;04C → :49161) / DirtRelay OSC for any OSC tool (/dirtrelay, /dirtrelay/play, /dirt/play → :49162)</dd>
   </dl>
   <div class="sec">Edit</div>
   <dl>
@@ -167,7 +169,7 @@ const post = (url, b = {}) => fetch(url, { method: 'POST', headers: { 'Content-T
 fetch('/api/sounds').then(r => r.json()).then(j => { SOUNDS = j; if (mode === 'edit') renderEdit() });
 const es = new EventSource('/events');
 es.addEventListener('state', (e) => { const d = JSON.parse(e.data); if (d.origin === ORIGIN && S) return; S = d.state; document.getElementById('bpm').textContent = S.bpm; render() });
-es.addEventListener('status', (e) => { const d = JSON.parse(e.data); ST = d; document.getElementById('dirt').classList.toggle('ok', d.dirt); document.getElementById('ports').textContent = `:${d.inPort} → :${d.dirtPort} · ${d.latency}s`; document.getElementById('bpm').textContent = d.bpm });
+es.addEventListener('status', (e) => { const d = JSON.parse(e.data); ST = d; document.getElementById('dirt').classList.toggle('ok', d.dirt); document.getElementById('proto').textContent = d.inLabel; document.getElementById('ports').textContent = `:${d.inPort} → :${d.dirtPort} · ${d.latency}s`; document.getElementById('bpm').textContent = d.bpm });
 es.addEventListener('hit', (e) => onHit(JSON.parse(e.data)));
 es.onerror = () => document.getElementById('dirt').classList.remove('ok');
 
@@ -276,6 +278,9 @@ function adjust(dir, big) {
   commit(sel); renderEdit();
 }
 
+function toggleInput() { post('/api/input', { input: ST.input === 'osc' ? 'udp' : 'osc' }) }
+document.getElementById('proto').onclick = toggleInput;
+
 // ---------- keys ----------
 document.addEventListener('keydown', (e) => {
   if (!S) return;
@@ -286,7 +291,8 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const hex = /^[0-9a-f]$/.test(k) && parseInt(k, 16) < S.slots.length;
   const it = items()[sel];
-  if (k === 't' && !isO(sel)) { post('/api/test/' + sel) }
+  if (k === 'i') { toggleInput() }
+  else if (k === 't' && !isO(sel)) { post('/api/test/' + sel) }
   else if (k === 'm' && !isO(sel)) { it.mute = !it.mute; commit(sel); render() }
   else if (mode === 'list') {
     if (hex) { sel = parseInt(k, 16); renderList() }

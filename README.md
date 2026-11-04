@@ -145,6 +145,37 @@ D4....D8....D2....
 
 注意：`;` の文字列は最初の `.` で終わります。隣の演算子とは `.` で区切ってください。`-` や `_` は ORCA に置けません。
 
+### 入力プロトコルの切り替え
+
+画面上部のボタン（または `i` キー）で、どちらで受けるかを切り替えます。選んだ方だけを受けます。設定は保存されます。
+
+| プロトコル | ポート | 送り方 |
+|---|---|---|
+| **ORCA UDP** | 49161 | ORCA の `;` オペレータ。上の書式（`;04C` など） |
+| **DirtRelay OSC** | 49162 | OSC。Max / Pd / TouchDesigner / Ableton（Max for Live）など、OSC を送れるツールから SuperDirt を操作するためのものです |
+
+DirtRelay OSC で受け付けるメッセージ：
+
+| アドレス | 引数 | 例 |
+|---|---|---|
+| `/dirtrelay` | 文字列（いくつでも） | `/dirtrelay "04C" "c3C"`：ORCA UDP と同じ書式を OSC で送ります。Max、Pd、TouchDesigner などから使えます |
+| `/dirtrelay/note` | slot octave semitone [velocity length] | `/dirtrelay/note 1 5 4 0.5`：スロット1、オクターブ5、E（半音 0〜11）、velocity 0.5 |
+| `/dirtrelay/bpm` | bpm | `/dirtrelay/bpm 128` |
+| `/dirtrelay/play` | slot [key value …] | `/dirtrelay/play 3 note 7 cutoff 900`：スロット3を鳴らします。後ろに付けた SuperDirt のパラメータは、スロットの設定より優先されます（slot は数値か `"c"` のような文字） |
+| `/dirt/play` | key value … | SuperDirt の生の命令をそのまま中継します（レイテンシ付きの bundle にして送り、画面上部に表示）。スロットの設定は使いません |
+
+### orbit の使い方
+
+orbit は SuperDirt の「トラック」です。orbit ごとに、リバーブ（room / size）とディレイ（delay / delaytime / delayfeedback）が1組ずつあります。
+
+1. **スロットの送り先 orbit を決める**：編集画面の `orbit` 欄（`o` キー）。既定では 0〜b が orbit 0、c〜f（打楽器）が orbit 1 です
+2. **orbit のエフェクトを設定する**：一覧の下にある `o0`〜`o3` の行を選び（`↓` で移動）、`Enter` で開きます。`n` で room などを追加し、`Space` で ON にします。LFO も使えます
+3. その orbit 宛てのすべての音に、同じ値が自動で付きます
+
+例：o0 に `room 0.4 / size 0.8` を付けて上モノだけ響かせ、o1（打楽器）は乾いたままにする。
+
+orbit を分ける理由：SuperDirt では room や delay が orbit 全体に1つしかありません。同じ orbit に「リバーブありの音」と「なしの音」が混ざると、届いた順に設定が上書きされて打ち消し合います（[docs/01](docs/01_SuperDirt受信仕様.md) §4.6 の実測）。
+
 ### 画面
 
 **一覧（リスト）**：1行が1スロットです。
@@ -179,6 +210,7 @@ D4....D8....D2....
 | | `m` | ミュート / 解除 |
 | | `Space` | スロットの全パラメータを一括 ON / OFF |
 | | `,` `.` | BPM −1 / +1 |
+| | `i` | 入力プロトコル切り替え（ORCA UDP ⇄ DirtRelay OSC） |
 | | `[` `]` | レイテンシ −0.05 / +0.05 秒 |
 | 編集 | `↑` `↓` / `←` `→` | 行 / 列（ON・波形・bars・min・max）の移動 |
 | | `Space` | ON / OFF |
@@ -195,6 +227,7 @@ D4....D8....D2....
 | 変数 | 既定値 | 内容 |
 |---|---|---|
 | `IN_PORT` | 49161 | 受信ポート（ORCA `;` の既定送信先） |
+| `OSC_PORT` | 49162 | DirtRelay OSC の受信ポート |
 | `DIRT_HOST` / `DIRT_PORT` | 127.0.0.1 / 57120 | SuperDirt の宛先 |
 | `HTTP_PORT` | 49170 | GUI |
 | `LATENCY` | 0.2（プリセットに保存） | SuperDirt へ送る bundle の先行時間（秒）。GUI の `[` `]` でも変更可 |
@@ -229,7 +262,7 @@ LATENCY=0.1 npm start
 | `hub/public/` | GUI（`index.html`）と、サーバー・GUI 共通の波形計算（`wave.js`） |
 | `hub/presets/` | 設定の保存先 |
 | `sc/` | SuperDirt 起動・試聴スクリプト |
-| `docs/` | 通信仕様・要件・画面モック |
+| `docs/` | 通信仕様（ORCA・SuperDirt・Tidal）・要件・画面モック |
 | `vendor/Orca/` | ORCA（各自で取得。git 管理外） |
 
 ## 今後
