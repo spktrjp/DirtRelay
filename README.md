@@ -49,7 +49,7 @@ ORCA は SuperDirt に直接つないでも鳴りません。
 | もの | 確認したバージョン | 備考 |
 |---|---|---|
 | macOS | 27 / Apple Silicon | |
-| [SuperCollider](https://supercollider.github.io/) | 3.12.2 | `brew install --cask supercollider` |
+| [SuperCollider](https://supercollider.github.io/) | 3.14.1 | `brew install --cask supercollider`。3.13 以降は Apple Silicon ネイティブ（3.12 以前は Rosetta で動き、音が途切れやすい） |
 | SuperDirt（quark） | v1.7.3 | 下記の手順で入れます |
 | Node.js | 18 以上（確認は 22） | |
 | [ORCA](https://github.com/hundredrabbits/Orca) | desktop 版 | 他者のリポジトリのため、このリポジトリには含めていません |
@@ -185,7 +185,7 @@ D4....D8....D2....
 | `IN_PORT` | 49161 | 受信ポート（ORCA `;` の既定送信先） |
 | `DIRT_HOST` / `DIRT_PORT` | 127.0.0.1 / 57120 | SuperDirt の宛先 |
 | `HTTP_PORT` | 49170 | GUI |
-| `LATENCY` | 0.5（プリセットに保存） | SuperDirt へ送る bundle の先行時間（秒）。GUI の `[` `]` でも変更可 |
+| `LATENCY` | 0.2（プリセットに保存） | SuperDirt へ送る bundle の先行時間（秒）。GUI の `[` `]` でも変更可 |
 | `DIRT_SAMPLES` | `~/Library/Application Support/SuperCollider/downloaded-quarks/Dirt-Samples` | サンプル一覧の読み込み元 |
 
 ```bash
@@ -202,7 +202,7 @@ LATENCY=0.1 npm start
 | scsynth が `Found 0 LADSPA plugins` で止まる | 入力デバイス（マイク）を開けていません。`start_dirt.scd` は入力0chにしてあります。IDE から起動してマイクを許可するか、入力0chのまま使ってください |
 | superpiano / supersaw / superfm などが鳴らない | sc3plugins が必要です（未導入でも、その他の super* 25種は鳴ります） |
 | `ERROR: Class not defined` が十数行出る | `start_dirt.scd` が sc3plugins 依存のシンセを読み飛ばしているだけなので、問題ありません |
-| 音がときどき途切れる・遅れる | SuperCollider（3.12 は Intel 版で Rosetta 上で動く）がときどき止まるのが原因です。`]` でレイテンシを上げてください（既定 0.5 秒で、実測では途切れなし）。根本的には Apple Silicon ネイティブの SuperCollider 3.13 以降に上げるのが有効です |
+| 音がときどき途切れる・遅れる | SuperCollider 3.12 以前（Intel 版で Rosetta 上で動く）がときどき止まるのが原因です。SuperCollider 3.13 以降（Apple Silicon ネイティブ）に上げてください（実測：3.12 では 90 秒で 21 回途切れ、3.14.1 では 0 回）。上げられない場合は `]` でレイテンシを 0.5 秒程度に上げると途切れなくなります |
 | ORCA の `npm install` が 404 で失敗する | `npm_config_arch=x64` を付けて実行してください |
 | 「UDP 49161 … in use」と出てアプリが閉じる | 他に 49161 を使うアプリ（Pilot など）を閉じるか、`IN_PORT` を変えてください（ORCA 側の送信先も合わせる） |
 

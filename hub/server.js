@@ -13,7 +13,7 @@ const CFG = {
   dirtHost: process.env.DIRT_HOST || '127.0.0.1',
   dirtPort: +(process.env.DIRT_PORT || 57120),
   httpPort: +(process.env.HTTP_PORT || 49170),
-  latency: process.env.LATENCY ? +process.env.LATENCY : null, // null = use preset (default 0.5)
+  latency: process.env.LATENCY ? +process.env.LATENCY : null, // null = use preset (default 0.2)
   samplesDir: process.env.DIRT_SAMPLES || path.join(os.homedir(), 'Library/Application Support/SuperCollider/downloaded-quarks/Dirt-Samples'),
   preset: process.env.DIRTRELAY_PRESET || path.join(__dirname, 'presets', 'current.json')
 }
@@ -40,7 +40,7 @@ const DEFAULT_SOUNDS = ['superhammond', 'supervibe', 'supermandolin', 'supersqua
 function defaultState () {
   return {
     bpm: 120,
-    latency: 0.5, // s. 0.2 was not enough: sclang (SC 3.12 under Rosetta) stalls up to ~1 s now and then
+    latency: 0.2, // s. Native SC 3.14 (arm64): 0 late notes at 0.1–0.2. Under SC 3.12/Rosetta use ~0.5
     slots: DEFAULT_SOUNDS.map((s, i) => ({ id: i.toString(16), sound: s, n: 0, orbit: i >= 12 ? 1 : 0, mute: false, sustain: 0.3, params: [] })),
     orbits: [0, 1, 2, 3].map(o => ({ orbit: o, params: [] }))
   }
@@ -48,7 +48,7 @@ function defaultState () {
 let state = defaultState()
 try { state = Object.assign(defaultState(), JSON.parse(fs.readFileSync(CFG.preset, 'utf8'))) } catch (e) { /* first run */ }
 if (CFG.latency != null) state.latency = CFG.latency
-if (!(state.latency > 0)) state.latency = 0.5
+if (!(state.latency > 0)) state.latency = 0.2
 let saveTimer = null
 function save () {
   clearTimeout(saveTimer)
