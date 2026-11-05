@@ -24,6 +24,7 @@ if (!fs.existsSync(presetFile)) {
 process.env.DIRTRELAY_PRESET = presetFile
 
 let win = null
+let relay = null // hub/server.js module, once loaded
 let sc = null // sclang child we started
 let scState = 'idle'
 const logFile = path.join(app.getPath('userData'), 'superdirt.log')
@@ -52,6 +53,71 @@ function setOutDevice (name) {
   buildMenu()
   if (sc) restartDirt()
 }
+
+// ---------- setups (File menu) ----------
+// A setup file (.dirtrelay, JSON) holds the tempo, the 16 slots and the orbit mixer.
+const SETUP_EXT = 'dirtrelay'
+const setupDir = () => {
+  if (settings.setupFile) return path.dirname(settings.setupFile)
+  const d = path.join(app.getPath('documents'), 'DirtRelay')
+  try { fs.mkdirSync(d, { recursive: true }) } catch (e) {}
+  return d
+}
+const setupFilters = [{ name: 'DirtRelay Setup', extensions: [SETUP_EXT] }, { name: 'JSON', extensions: ['json'] }]
+function setCurrentSetup (file) {
+  settings.setupFile = file || null
+  if (file) settings.recentSetups = [file, ...(settings.recentSetups || []).filter(f => f !== file)].slice(0, 8)
+  saveSettings(); buildMenu()
+  if (file) app.addRecentDocument(file)
+}
+function writeSetup (file) {
+  try {
+    fs.writeFileSync(file, JSON.stringify(relay.getSetup(), null, 1))
+    setCurrentSetup(file)
+  } catch (e) { dialog.showErrorBox('DirtRelay', `Could not save the setup:\n${e.message}`) }
+}
+async function saveSetupAs () {
+  if (!relay) return
+  const r = await dialog.showSaveDialog(win, {
+    title: 'Save Setup',
+    defaultPath: settings.setupFile || path.join(setupDir(), `setup.${SETUP_EXT}`),
+    filters: setupFilters
+  })
+  if (!r.canceled && r.filePath) writeSetup(r.filePath)
+}
+function saveSetup () {
+  if (!relay) return
+  if (settings.setupFile) writeSetup(settings.setupFile); else saveSetupAs()
+}
+function openSetupFile (file) {
+  if (!relay) return false
+  try {
+    relay.loadSetup(JSON.parse(fs.readFileSync(file, 'utf8')))
+    setCurrentSetup(file)
+    return true
+  } catch (e) {
+    dialog.showErrorBox('DirtRelay', `Could not open the setup:\n${file}\n\n${e.message}`)
+    if ((settings.recentSetups || []).includes(file) && !fs.existsSync(file)) {
+      settings.recentSetups = settings.recentSetups.filter(f => f !== file); saveSettings(); buildMenu()
+    }
+    return false
+  }
+}
+async function openSetup () {
+  if (!relay) return
+  const r = await dialog.showOpenDialog(win, { title: 'Open Setup', defaultPath: setupDir(), filters: setupFilters, properties: ['openFile'] })
+  if (!r.canceled && r.filePaths[0]) openSetupFile(r.filePaths[0])
+}
+async function newSetup () {
+  if (!relay) return
+  const r = await dialog.showMessageBox(win, { type: 'question', buttons: ['New Setup', 'Cancel'], defaultId: 0, cancelId: 1, message: 'Start a new setup?', detail: 'All slots and the orbit mixer go back to the defaults. Save first if you want to keep the current setup.' })
+  if (r.response !== 0) return
+  relay.loadSetup({ bpm: 120, slots: Array.from({ length: 16 }, () => ({})) })
+  setCurrentSetup(null)
+}
+// Files opened from Finder (double-click / drop on the Dock icon) before or after launch.
+let pendingOpen = null
+app.on('open-file', (e, file) => { e.preventDefault(); if (relay) openSetupFile(file); else pendingOpen = file })
 
 // ---------- SuperDirt ----------
 function encodeHello () {
@@ -151,6 +217,27 @@ function buildMenu () {
   const label = { idle: 'stopped', starting: 'starting…', running: 'running (started by DirtRelay)' }[scState]
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Setup', accelerator: 'CmdOrCtrl+N', click: newSetup },
+        { label: 'Open Setup…', accelerator: 'CmdOrCtrl+O', click: openSetup },
+        {
+          label: 'Open Recent',
+          submenu: [
+            ...(settings.recentSetups || []).map(f => ({ label: path.basename(f), click: () => openSetupFile(f) })),
+            ...((settings.recentSetups || []).length ? [{ type: 'separator' }] : []),
+            { label: 'Clear Menu', enabled: !!(settings.recentSetups || []).length, click: () => { settings.recentSetups = []; saveSettings(); app.clearRecentDocuments(); buildMenu() } }
+          ]
+        },
+        { type: 'separator' },
+        { label: 'Save Setup', accelerator: 'CmdOrCtrl+S', click: saveSetup },
+        { label: 'Save Setup As…', accelerator: 'CmdOrCtrl+Shift+S', click: saveSetupAs },
+        { type: 'separator' },
+        { label: settings.setupFile ? `Current: ${path.basename(settings.setupFile)}` : 'Current: (unsaved)', enabled: false },
+        { label: 'Show in Finder', enabled: !!settings.setupFile, click: () => shell.showItemInFolder(settings.setupFile) }
+      ]
+    },
     { role: 'editMenu' },
     {
       label: 'SuperDirt',
@@ -199,7 +286,6 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 app.whenReady().then(async () => {
   scanOutDevices()
   buildMenu()
-  let relay
   try {
     relay = require(path.join(ROOT, 'hub', 'server.js'))
   } catch (e) {
@@ -209,7 +295,10 @@ app.whenReady().then(async () => {
     dialog.showErrorBox('DirtRelay', `${msg}\n\nAnother app (an old DirtRelay, Pilot, …) may be using this port.`)
     app.quit()
   })
-  relay.events.once('ready', () => createWindow(relay.CFG.httpPort))
+  relay.events.once('ready', () => {
+    createWindow(relay.CFG.httpPort)
+    if (pendingOpen) { openSetupFile(pendingOpen); pendingOpen = null }
+  })
   if (!(await dirtAnswers(relay.CFG.dirtPort))) startDirt()
 })
 

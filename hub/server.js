@@ -268,6 +268,37 @@ function broadcast (type, data) {
   for (const c of clients) c.write(line)
 }
 setInterval(() => broadcast('status', status()), 1000)
+
+// ---------- setups (save / load a whole setup as a file) ----------
+// A setup is what makes up a piece: tempo, the 16 slots and the orbit mixer.
+// Input protocol and latency belong to the machine, so they are not part of it.
+const SETUP_FORMAT = 'dirtrelay-setup'
+function getSetup () {
+  return { format: SETUP_FORMAT, version: 1, bpm: state.bpm, slots: state.slots, orbits: state.orbits }
+}
+function loadSetup (obj) {
+  if (!obj || typeof obj !== 'object') throw new Error('not a DirtRelay setup')
+  if (obj.format && obj.format !== SETUP_FORMAT) throw new Error('not a DirtRelay setup')
+  if (!Array.isArray(obj.slots) || !obj.slots.length) throw new Error('setup has no slots')
+  const def = defaultState()
+  const slots = def.slots.map((d, i) => {
+    const x = obj.slots[i]
+    if (!x || typeof x !== 'object') return d
+    return Object.assign({}, d, x, { id: d.id, params: Array.isArray(x.params) ? x.params : [] })
+  })
+  const orbits = def.orbits.map((d, i) => {
+    const x = Array.isArray(obj.orbits) ? obj.orbits[i] : null
+    return x && typeof x === 'object' ? { orbit: d.orbit, params: Array.isArray(x.params) ? x.params : [] } : d
+  })
+  state.slots = slots
+  state.orbits = orbits
+  if (obj.bpm >= 20 && obj.bpm <= 300) state.bpm = +obj.bpm
+  save()
+  broadcast('state', { state })
+  broadcast('status', status())
+}
+module.exports.getSetup = getSetup
+module.exports.loadSetup = loadSetup
 const status = () => ({ dirt: Date.now() - dirtSeen < 5000, input: state.input, inLabel: PROTOCOLS[state.input].label, inPort: PROTOCOLS[state.input].port, dirtPort: CFG.dirtPort, latency: state.latency, t0: T0, bpm: state.bpm })
 
 function body (req) { return new Promise((resolve) => { let d = ''; req.on('data', c => { d += c }); req.on('end', () => { try { resolve(JSON.parse(d || '{}')) } catch (e) { resolve({}) } }) }) }

@@ -5,5 +5,19 @@
   <!-- Keep the relay and the SuperDirt it launches from being throttled by App Nap when the window is in the background. -->
   <key>NSAppSleepDisabled</key>
   <true/>
+  <!-- Setup files (.dirtrelay) open in DirtRelay from Finder. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>DirtRelay Setup</string>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>dirtrelay</string></array>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+  </array>
 </dict>
 </plist>

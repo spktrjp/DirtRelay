@@ -179,6 +179,22 @@ SuperCollider の出力先は**サーバー起動時点のデバイスに固定*
 - **出力先を固定する**：メニュー SuperDirt → Output Device でデバイスを選択すると、SuperDirt がそのデバイスで再起動する。選択は保存され、次回起動時にも適用される。新たに接続したデバイスが一覧にない場合は Rescan Devices を実行する。
 - アプリ以外（SuperCollider IDE 等）で SuperDirt を起動している場合、この設定は適用されない。IDE 側で `s.options.outDevice = "デバイス名";` を指定する（一覧は `ServerOptions.outDevices.postln;`）。
 
+### セットアップの保存と読み込み
+
+テンポ、16 スロット（音源・パラメータ・LFO・orbit・ミュート）、orbit ミキサーの設定一式を「セットアップ」として、ファイル（`.dirtrelay`、JSON 形式）に保存・読み込みできる。入力プロトコルとレイテンシは使用環境に依存する設定であるため、セットアップには含めない。
+
+| メニュー File | キー | 動作 |
+|---|---|---|
+| New Setup | `Cmd+N` | すべてのスロットと orbit ミキサーを初期状態に戻す（確認あり） |
+| Open Setup… | `Cmd+O` | セットアップを読み込み、現在の設定を置き換える |
+| Open Recent | | 最近使用したセットアップ（最大 8 件）を開く |
+| Save Setup | `Cmd+S` | 現在のファイルに上書き保存する。未保存の場合は保存先を尋ねる |
+| Save Setup As… | `Cmd+Shift+S` | 別名で保存する |
+
+- 保存先の既定は `~/Documents/DirtRelay/` である。
+- `.dirtrelay` ファイルは Finder からダブルクリック、または Dock のアイコンへのドロップでも開ける。
+- 現在の作業状態は従来どおり自動保存され（`presets/current.json`）、次回起動時に復元される。セットアップファイルは、曲やライブごとに設定を切り替えるためのものである。
+
 ### 画面構成
 
 **一覧画面**：1 行が 1 スロットに対応する。
@@ -304,6 +320,10 @@ cd vendor/Orca/desktop && npm_config_arch=x64 npm install
 
 | キー | 動作 |
 |---|---|
+| `Cmd+N` | 新規セットアップ |
+| `Cmd+O` | セットアップを開く |
+| `Cmd+S` | セットアップを保存 |
+| `Cmd+Shift+S` | セットアップを別名で保存 |
 | `Cmd+Shift+R` | SuperDirt の再起動 |
 
 ### 一覧画面
@@ -352,7 +372,6 @@ cd vendor/Orca/desktop && npm_config_arch=x64 npm install
 
 - ORCA `=`（整数 OSC）および MIDI の受信
 - Pilot の音色命令（OSC / ENV / エフェクト）の読み替え
-- プリセットの切り替え
 - 汎用 OSC / UDP 入力の拡充
 
 ---
