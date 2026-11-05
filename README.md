@@ -345,7 +345,7 @@ cd vendor/Orca/desktop && npm_config_arch=x64 npm install
 | `hub/presets/` | 設定の保存先（`npm run relay` 時） |
 | `sc/` | SuperDirt の起動・試聴スクリプト |
 | `tidal/BootTidal.hs` | DirtRelay 経由で Tidal を用いるための BootTidal |
-| `docs/` | 通信仕様（ORCA・SuperDirt・Tidal）、要件、画面モック |
+| `docs/` | 通信仕様（ORCA・SuperDirt・Tidal）、要件、画面モック、README 用画像（`images/`） |
 | `vendor/Orca/` | ORCA（各自で取得。git 管理外） |
 
 ## 今後の予定
