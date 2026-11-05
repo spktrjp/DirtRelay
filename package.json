@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "relay": "node hub/server.js",
-    "dist": "electron-packager . DirtRelay --platform=darwin --arch=arm64 --out=dist --overwrite --no-asar --app-bundle-id=jp.spktr.dirtrelay --extend-info=electron/Info.extra.plist --ignore=\"^/(vendor|dist|docs|\\.git)($|/)\""
+    "dist": "electron-packager . DirtRelay --platform=darwin --arch=arm64 --out=dist --overwrite --no-asar --app-bundle-id=jp.spktr.dirtrelay --extend-info=electron/Info.extra.plist --icon=electron/icon.icns --ignore=\"^/(vendor|dist|docs|\\.git)($|/)\""
   },
   "devDependencies": {
     "@electron/packager": "18.3.6",
