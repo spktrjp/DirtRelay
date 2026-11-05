@@ -7,6 +7,8 @@
 var quarks = "DIRT_QUARKS".getenv ?? { Platform.userAppSupportDir +/+ "downloaded-quarks" };
 // DIRT_EXTENSIONS: アプリ起動時（HOME 差し替え）でも、ユーザーの Extensions にある UGen（sc3plugins 等）を scsynth に読ませる
 "DIRT_EXTENSIONS".getenv !? { |ext| s.options.ugenPluginsPath = [Platform.resourceDir +/+ "plugins", ext, Platform.systemExtensionDir].select { |p| File.exists(p) } };
+// DIRT_OUTDEVICE: DirtRelay の Output Device メニューで選んだ出力先（未設定ならシステムの既定）
+"DIRT_OUTDEVICE".getenv !? { |dev| s.options.outDevice = dev; "HUB: output device %".format(dev).postln };
 s.options.numInputBusChannels = 0;
 s.options.numOutputBusChannels = 2;
 s.options.numBuffers = 1024 * 256;

@@ -28,6 +28,31 @@ let sc = null // sclang child we started
 let scState = 'idle'
 const logFile = path.join(app.getPath('userData'), 'superdirt.log')
 
+// ---------- settings (output device) ----------
+const settingsFile = path.join(app.getPath('userData'), 'settings.json')
+function loadSettings () { try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')) } catch (e) { return {} } }
+let settings = loadSettings()
+function saveSettings () { try { fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)) } catch (e) {} }
+
+// CoreAudio output devices, as SuperCollider names them (system_profiler uses the same names).
+let outDevices = []
+function scanOutDevices () {
+  try {
+    const j = JSON.parse(execFileSync('system_profiler', ['SPAudioDataType', '-json'], { timeout: 8000 }).toString())
+    const items = (j.SPAudioDataType || []).flatMap(x => x._items || [])
+    outDevices = items.filter(d => d.coreaudio_device_output).map(d => ({
+      name: d._name,
+      isDefault: d.coreaudio_default_audio_output_device === 'spaudio_yes'
+    }))
+  } catch (e) { outDevices = [] }
+}
+function setOutDevice (name) {
+  settings.outDevice = name || null
+  saveSettings()
+  buildMenu()
+  if (sc) restartDirt()
+}
+
 // ---------- SuperDirt ----------
 function encodeHello () {
   const pad = (b) => Buffer.concat([b, Buffer.alloc(4 - (b.length % 4))])
@@ -76,7 +101,7 @@ function startDirt () {
   sc = spawn(SCLANG, args, {
     cwd: path.join(ROOT, 'sc'),
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: Object.assign({}, process.env, { HOME: home, DIRT_QUARKS: path.join(SC_SUPPORT, 'downloaded-quarks'), DIRT_EXTENSIONS: ext })
+    env: Object.assign({}, process.env, { HOME: home, DIRT_QUARKS: path.join(SC_SUPPORT, 'downloaded-quarks'), DIRT_EXTENSIONS: ext }, settings.outDevice ? { DIRT_OUTDEVICE: settings.outDevice } : {})
   })
   scState = 'starting'
   sc.stdout.pipe(log); sc.stderr.pipe(log)
@@ -133,8 +158,20 @@ function buildMenu () {
         { label: `Status: ${label}`, enabled: false },
         { type: 'separator' },
         { label: 'Start SuperDirt', enabled: !sc, click: startDirt },
-        { label: 'Restart SuperDirt', enabled: !!sc, click: restartDirt },
+        { label: 'Restart SuperDirt', enabled: !!sc, accelerator: 'CmdOrCtrl+Shift+R', click: restartDirt },
         { label: 'Stop SuperDirt', enabled: !!sc, click: () => { stopDirt(); buildMenu() } },
+        { type: 'separator' },
+        {
+          label: 'Output Device',
+          submenu: [
+            { label: 'System Default (at start)', type: 'radio', checked: !settings.outDevice, click: () => setOutDevice(null) },
+            { type: 'separator' },
+            ...outDevices.map(d => ({ label: d.name + (d.isDefault ? '  (current default)' : ''), type: 'radio', checked: settings.outDevice === d.name, click: () => setOutDevice(d.name) })),
+            ...(settings.outDevice && !outDevices.some(d => d.name === settings.outDevice) ? [{ label: settings.outDevice + '  (not connected)', type: 'radio', checked: true, enabled: false }] : []),
+            { type: 'separator' },
+            { label: 'Rescan Devices', click: () => { scanOutDevices(); buildMenu() } }
+          ]
+        },
         { type: 'separator' },
         { label: 'Open SuperDirt Log', click: () => shell.openPath(logFile) },
         { label: 'Open Presets Folder', click: () => shell.openPath(path.dirname(presetFile)) }
@@ -160,6 +197,7 @@ ipcMain.on('fit', (e, w, h) => {
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus() } })
 
 app.whenReady().then(async () => {
+  scanOutDevices()
   buildMenu()
   let relay
   try {

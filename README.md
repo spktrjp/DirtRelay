@@ -267,6 +267,14 @@ orbit は SuperDirt の「トラック」です。orbit ごとに、リバーブ
 
 orbit を分ける理由：SuperDirt では room や delay が orbit 全体に1つしかありません。同じ orbit に「リバーブありの音」と「なしの音」が混ざると、届いた順に設定が上書きされて打ち消し合います（[docs/01](docs/01_SuperDirt受信仕様.md) §4.6 の実測）。
 
+### 音の出力先（イヤフォン・オーディオインターフェース）
+
+SuperCollider は**起動した時点の出力先に固定**されます。Apple Silicon の Mac では「スピーカー」と「外部ヘッドフォン」が別の機器なので、起動後にイヤフォンを挿しても音はスピーカー側に出たままです。
+
+- **システムの既定に合わせる**: 出力先を切り替えたら、メニュー SuperDirt → Restart SuperDirt（`Cmd+Shift+R`）で起動し直します。
+- **出力先を固定する**: メニュー SuperDirt → Output Device で機器を選ぶと、SuperDirt がその機器で起動し直します。選んだ機器は記憶され、次回の起動でも使われます。新しく挿した機器が一覧にない場合は Rescan Devices を選んでください。
+- アプリ以外（SuperCollider IDE など）で SuperDirt を起動している場合、この設定は効きません。IDE 側で `s.options.outDevice = "機器名";` を指定してください（機器名の一覧は `ServerOptions.outDevices.postln;`）。
+
 ### 画面
 
 **一覧（リスト）**：1行が1スロットです。
@@ -340,6 +348,7 @@ LATENCY=0.1 npm start
 | superpiano / supersaw / superfm などが鳴らない | sc3-plugins が必要です（上記「sc3-plugins（任意）」）。入っていなくても、その他の super* 25種は鳴ります。アプリから起動した SuperDirt も、`~/Library/Application Support/SuperCollider/Extensions` の sc3-plugins を読み込みます |
 | `ERROR: Class not defined` が十数行出る | sc3-plugins が無い環境で、`start_dirt.scd` が sc3-plugins 依存のシンセを読み飛ばしているだけなので、問題ありません |
 | 音がときどき途切れる・遅れる | SuperCollider 3.12 以前（Intel 版で Rosetta 上で動く）がときどき止まるのが原因です。SuperCollider 3.13 以降（Apple Silicon ネイティブ）に上げてください（実測：3.12 では 90 秒で 21 回途切れ、3.14.1 では 0 回）。上げられない場合は `]` でレイテンシを 0.5 秒程度に上げると途切れなくなります |
+| イヤフォンを挿したら聞こえなくなった | 上記「音の出力先」を参照。Restart SuperDirt（`Cmd+Shift+R`）か、Output Device で出力先を選んでください |
 | ORCA の `npm install` が 404 で失敗する | `npm_config_arch=x64` を付けて実行してください |
 | 「UDP 49161 … in use」と出てアプリが閉じる | 他に 49161 を使うアプリ（Pilot など）を閉じるか、`IN_PORT` を変えてください（ORCA 側の送信先も合わせる） |
 
@@ -365,3 +374,7 @@ LATENCY=0.1 npm start
 - プリセットの切り替え
 - ORCA ライクな見た目
 - 汎用 OSC/UDP の受け口
+
+## ライセンス
+
+[MIT License](LICENSE)。ORCA（Hundred Rabbits）は同梱していません（各自で取得してください。ORCA 自体も MIT License です）。
