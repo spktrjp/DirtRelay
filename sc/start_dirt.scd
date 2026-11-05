@@ -8,7 +8,17 @@ var quarks = "DIRT_QUARKS".getenv ?? { Platform.userAppSupportDir +/+ "downloade
 // DIRT_EXTENSIONS: アプリ起動時（HOME 差し替え）でも、ユーザーの Extensions にある UGen（sc3plugins 等）を scsynth に読ませる
 "DIRT_EXTENSIONS".getenv !? { |ext| s.options.ugenPluginsPath = [Platform.resourceDir +/+ "plugins", ext, Platform.systemExtensionDir].select { |p| File.exists(p) } };
 // DIRT_OUTDEVICE: DirtRelay の Output Device メニューで選んだ出力先（未設定ならシステムの既定）
-"DIRT_OUTDEVICE".getenv !? { |dev| s.options.outDevice = dev; "HUB: output device %".format(dev).postln };
+// SC 3.14 は日本語などマルチバイトのデバイス名を途中で切って扱う（例: 外部ヘッドフォン → 外部）。
+// フル名のままだと scsynth が一致させられず黙って既定に戻るので、SC 側の名前のうち要求名の接頭辞になっている最長のものを使う。
+"DIRT_OUTDEVICE".getenv !? { |dev|
+	var scName = ServerOptions.outDevices.select { |d| d.size > 0 and: { dev.beginsWith(d) } }.maxItem { |d| d.size };
+	if(scName.notNil) {
+		s.options.outDevice = scName;
+		"HUB: output device % (SC name: %)".format(dev, scName).postln;
+	} {
+		"HUB: output device % not found, using system default".format(dev).postln;
+	};
+};
 s.options.numInputBusChannels = 0;
 s.options.numOutputBusChannels = 2;
 s.options.numBuffers = 1024 * 256;
