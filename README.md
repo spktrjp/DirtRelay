@@ -2,6 +2,8 @@
 
 DirtRelay は、ORCA 等のシーケンサーから送られる短いメッセージを受け取り、スロット（0〜f）ごとに定義した音色・エフェクト・パラメータ変調を付与して、SuperCollider の **SuperDirt** へ OSC bundle として送出する macOS アプリケーションである。ORCA UDP のほか、汎用 OSC および TidalCycles からの入力にも対応する。
 
+<img src="docs/images/screenshot.png" alt="DirtRelay の一覧画面" width="480">
+
 ```
 ORCA ;04C ──UDP 49161──▶ DirtRelay ──OSC bundle──▶ SuperDirt :57120 ──▶ 音
                              ▲
